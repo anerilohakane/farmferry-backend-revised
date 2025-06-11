@@ -1,0 +1,422 @@
+import Product from "../models/product.model.js";
+import Category from "../models/category.model.js";
+import { ApiError } from "../utils/ApiError.js";
+import { ApiResponse } from "../utils/ApiResponse.js";
+import { asyncHandler } from "../utils/asyncHandler.js";
+import { uploadToCloudinary, deleteFromCloudinary } from "../config/cloudinary.js";
+
+// Create a new product
+export const createProduct = asyncHandler(async (req, res) => {
+  const { 
+    name, 
+    description, 
+    price, 
+    stockQuantity, 
+    categoryId, 
+    unit, 
+    discountedPrice,
+    sku,
+    barcode,
+    expiryDate,
+    manufactureDate,
+    variations
+  } = req.body;
+  
+  // Validate required fields
+  if (!name || !price || !stockQuantity || !categoryId) {
+    throw new ApiError(400, "Name, price, stock quantity, and category are required");
+  }
+  
+  // Check if category exists
+  const category = await Category.findById(categoryId);
+  if (!category) {
+    throw new ApiError(404, "Category not found");
+  }
+  
+  // Create product object
+  const productData = {
+    supplierId: req.user._id,
+    categoryId,
+    name,
+    description,
+    price: Number(price),
+    stockQuantity: Number(stockQuantity),
+    unit: unit || "kg",
+    images: []
+  };
+  
+  // Add optional fields if provided
+  if (discountedPrice) productData.discountedPrice = Number(discountedPrice);
+  if (sku) productData.sku = sku;
+  if (barcode) productData.barcode = barcode;
+  if (expiryDate) productData.expiryDate = new Date(expiryDate);
+  if (manufactureDate) productData.manufactureDate = new Date(manufactureDate);
+  
+  // Add variations if provided
+  if (variations && Array.isArray(variations)) {
+    try {
+      productData.variations = JSON.parse(variations);
+    } catch (error) {
+      // If parsing fails, assume it's already an array
+      productData.variations = variations;
+    }
+  }
+  
+  // Handle image uploads
+  if (req.files && req.files.length > 0) {
+    const uploadPromises = req.files.map(file => 
+      uploadToCloudinary(file.path, "products")
+    );
+    
+    const uploadResults = await Promise.all(uploadPromises);
+    
+    // Filter out failed uploads
+    const successfulUploads = uploadResults.filter(result => result);
+    
+    if (successfulUploads.length === 0 && req.files.length > 0) {
+      throw new ApiError(500, "Failed to upload product images");
+    }
+    
+    // Add successful uploads to product images
+    productData.images = successfulUploads.map(result => ({
+      url: result.secure_url,
+      publicId: result.public_id
+    }));
+  }
+  
+  // Create product
+  const product = await Product.create(productData);
+  
+  return res.status(201).json(
+    new ApiResponse(
+      201,
+      { product },
+      "Product created successfully"
+    )
+  );
+});
+
+// Get all products
+export const getAllProducts = asyncHandler(async (req, res) => {
+  const { 
+    search, 
+    category, 
+    supplier, 
+    minPrice, 
+    maxPrice, 
+    inStock,
+    featured,
+    trending,
+    sort = "createdAt", 
+    order = "desc", 
+    page = 1, 
+    limit = 10 
+  } = req.query;
+  
+  const queryOptions = { isActive: true };
+  
+  // Search by name
+  if (search) {
+    queryOptions.name = { $regex: search, $options: "i" };
+  }
+  
+  // Filter by category
+  if (category) {
+    queryOptions.categoryId = category;
+  }
+  
+  // Filter by supplier
+  if (supplier) {
+    queryOptions.supplierId = supplier;
+  }
+  
+  // Filter by price range
+  if (minPrice || maxPrice) {
+    queryOptions.price = {};
+    if (minPrice) queryOptions.price.$gte = Number(minPrice);
+    if (maxPrice) queryOptions.price.$lte = Number(maxPrice);
+  }
+  
+  // Filter by stock
+  if (inStock === "true") {
+    queryOptions.stockQuantity = { $gt: 0 };
+  }
+  
+  // Filter by featured
+  if (featured === "true") {
+    queryOptions.isFeatured = true;
+  }
+  
+  // Filter by trending
+  if (trending === "true") {
+    queryOptions.isTrending = true;
+  }
+  
+  // Calculate pagination
+  const skip = (parseInt(page) - 1) * parseInt(limit);
+  
+  // Prepare sort options
+  const sortOptions = {};
+  
+  // Handle special sort cases
+  if (sort === "price" && order === "asc") {
+    sortOptions.price = 1;
+  } else if (sort === "price" && order === "desc") {
+    sortOptions.price = -1;
+  } else if (sort === "rating") {
+    sortOptions.averageRating = order === "asc" ? 1 : -1;
+  } else {
+    // Default sort
+    sortOptions[sort] = order === "asc" ? 1 : -1;
+  }
+  
+  // Get products with pagination
+  const products = await Product.find(queryOptions)
+    .populate("categoryId", "name")
+    .populate("supplierId", "businessName")
+    .sort(sortOptions)
+    .skip(skip)
+    .limit(parseInt(limit));
+  
+  // Get total count
+  const totalProducts = await Product.countDocuments(queryOptions);
+  
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      { 
+        products,
+        pagination: {
+          total: totalProducts,
+          page: parseInt(page),
+          limit: parseInt(limit),
+          pages: Math.ceil(totalProducts / parseInt(limit))
+        }
+      },
+      "Products fetched successfully"
+    )
+  );
+});
+
+// Get product by ID
+export const getProductById = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  
+  const product = await Product.findById(id)
+    .populate("categoryId", "name")
+    .populate("supplierId", "businessName logo");
+  
+  if (!product) {
+    throw new ApiError(404, "Product not found");
+  }
+  
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      { product },
+      "Product fetched successfully"
+    )
+  );
+});
+
+// Update product
+export const updateProduct = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { 
+    name, 
+    description, 
+    price, 
+    stockQuantity, 
+    categoryId, 
+    unit, 
+    discountedPrice,
+    sku,
+    barcode,
+    expiryDate,
+    manufactureDate,
+    variations,
+    isActive,
+    isFeatured,
+    isTrending
+  } = req.body;
+  
+  // Find product
+  const product = await Product.findById(id);
+  
+  if (!product) {
+    throw new ApiError(404, "Product not found");
+  }
+  
+  // Check if user is the supplier of this product
+  if (product.supplierId.toString() !== req.user._id.toString()) {
+    throw new ApiError(403, "You are not authorized to update this product");
+  }
+  
+  // Check if category exists if provided
+  if (categoryId) {
+    const category = await Category.findById(categoryId);
+    if (!category) {
+      throw new ApiError(404, "Category not found");
+    }
+  }
+  
+  // Update fields if provided
+  if (name) product.name = name;
+  if (description) product.description = description;
+  if (price) product.price = Number(price);
+  if (stockQuantity) product.stockQuantity = Number(stockQuantity);
+  if (categoryId) product.categoryId = categoryId;
+  if (unit) product.unit = unit;
+  if (discountedPrice) product.discountedPrice = Number(discountedPrice);
+  if (sku) product.sku = sku;
+  if (barcode) product.barcode = barcode;
+  if (expiryDate) product.expiryDate = new Date(expiryDate);
+  if (manufactureDate) product.manufactureDate = new Date(manufactureDate);
+  if (isActive !== undefined) product.isActive = isActive === "true";
+  if (isFeatured !== undefined) product.isFeatured = isFeatured === "true";
+  if (isTrending !== undefined) product.isTrending = isTrending === "true";
+  
+  // Update variations if provided
+  if (variations) {
+    try {
+      product.variations = JSON.parse(variations);
+    } catch (error) {
+      // If parsing fails, assume it's already an array
+      product.variations = variations;
+    }
+  }
+  
+  // Handle image uploads
+  if (req.files && req.files.length > 0) {
+    const uploadPromises = req.files.map(file => 
+      uploadToCloudinary(file.path, "products")
+    );
+    
+    const uploadResults = await Promise.all(uploadPromises);
+    
+    // Filter out failed uploads
+    const successfulUploads = uploadResults.filter(result => result);
+    
+    if (successfulUploads.length === 0 && req.files.length > 0) {
+      throw new ApiError(500, "Failed to upload product images");
+    }
+    
+    // Add successful uploads to product images
+    const newImages = successfulUploads.map(result => ({
+      url: result.secure_url,
+      publicId: result.public_id
+    }));
+    
+    product.images = [...product.images, ...newImages];
+  }
+  
+  // Save product
+  await product.save();
+  
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      { product },
+      "Product updated successfully"
+    )
+  );
+});
+
+// Delete product image
+export const deleteProductImage = asyncHandler(async (req, res) => {
+  const { id, imageId } = req.params;
+  
+  // Find product
+  const product = await Product.findById(id);
+  
+  if (!product) {
+    throw new ApiError(404, "Product not found");
+  }
+  
+  // Check if user is the supplier of this product
+  if (product.supplierId.toString() !== req.user._id.toString()) {
+    throw new ApiError(403, "You are not authorized to update this product");
+  }
+  
+  // Find image
+  const imageIndex = product.images.findIndex(img => img._id.toString() === imageId);
+  
+  if (imageIndex === -1) {
+    throw new ApiError(404, "Image not found");
+  }
+  
+  // Delete image from cloudinary
+  await deleteFromCloudinary(product.images[imageIndex].publicId);
+  
+  // Remove image from product
+  product.images.splice(imageIndex, 1);
+  
+  // Save product
+  await product.save();
+  
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      { images: product.images },
+      "Product image deleted successfully"
+    )
+  );
+});
+
+// Delete product
+export const deleteProduct = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  
+  // Find product
+  const product = await Product.findById(id);
+  
+  if (!product) {
+    throw new ApiError(404, "Product not found");
+  }
+  
+  // Check if user is the supplier of this product
+  if (product.supplierId.toString() !== req.user._id.toString()) {
+    throw new ApiError(403, "You are not authorized to delete this product");
+  }
+  
+  // Delete all product images from cloudinary
+  const deletePromises = product.images.map(image => 
+    deleteFromCloudinary(image.publicId)
+  );
+  
+  await Promise.all(deletePromises);
+  
+  // Delete product
+  await Product.findByIdAndDelete(id);
+  
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      {},
+      "Product deleted successfully"
+    )
+  );
+});
+
+
+export const getMyProducts = asyncHandler(async (req, res) => {
+  const { page = 1, limit = 10 } = req.query;
+  
+  const products = await Product.find({ supplier: req.user._id })
+    .skip((page - 1) * limit)
+    .limit(limit);
+    
+  res.json(new ApiResponse(200, 'Products retrieved', products));
+});
+
+
+export const getProductsBySupplier = asyncHandler(async (req, res) => {
+  const { supplierId } = req.params;
+  const { page = 1, limit = 10 } = req.query;
+  
+  const products = await Product.find({ supplier: supplierId })
+    .skip((page - 1) * limit)
+    .limit(limit);
+    
+  res.json(new ApiResponse(200, 'Products retrieved', products));
+});

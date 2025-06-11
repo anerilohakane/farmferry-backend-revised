@@ -1,0 +1,27 @@
+import { Router } from "express";
+import authRoutes from "./auth.routes.js";
+import customerRoutes from "./customer.routes.js";
+import supplierRoutes from "./supplier.routes.js";
+import productRoutes from "./product.routes.js";
+import categoryRoutes from "./category.routes.js";
+import orderRoutes from "./order.routes.js";
+import cartRoutes from "./cart.routes.js";
+import reviewRoutes from "./review.routes.js";
+import adminRoutes from "./admin.routes.js";
+import deliveryAssociateRoutes from "./deliveryAssociate.routes.js";
+
+const router = Router();
+
+// Register all routes
+router.use("/auth", authRoutes);
+router.use("/customers", customerRoutes);
+router.use("/suppliers", supplierRoutes);
+router.use("/products", productRoutes);
+router.use("/categories", categoryRoutes);
+router.use("/orders", orderRoutes);
+router.use("/cart", cartRoutes);
+router.use("/reviews", reviewRoutes);
+router.use("/admin", adminRoutes);
+router.use("/delivery-associates", deliveryAssociateRoutes);
+
+export default router;

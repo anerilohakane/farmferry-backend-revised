@@ -1,0 +1,715 @@
+import Admin from "../models/admin.model.js";
+import Customer from "../models/customer.model.js";
+import Supplier from "../models/supplier.model.js";
+import Product from "../models/product.model.js";
+import Order from "../models/order.model.js";
+import Category from "../models/category.model.js";
+import { ApiError } from "../utils/ApiError.js";
+import { ApiResponse } from "../utils/ApiResponse.js";
+import { asyncHandler } from "../utils/asyncHandler.js";
+
+// Get admin profile
+export const getAdminProfile = asyncHandler(async (req, res) => {
+  const admin = await Admin.findById(req.user._id).select("-password -passwordResetToken -passwordResetExpires");
+  
+  if (!admin) {
+    throw new ApiError(404, "Admin not found");
+  }
+  
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      { admin },
+      "Admin profile fetched successfully"
+    )
+  );
+});
+
+// Update admin profile
+export const updateAdminProfile = asyncHandler(async (req, res) => {
+  const { name } = req.body;
+  
+  const updateFields = {};
+  
+  if (name) updateFields.name = name;
+  
+  const updatedAdmin = await Admin.findByIdAndUpdate(
+    req.user._id,
+    { $set: updateFields },
+    { new: true }
+  ).select("-password -passwordResetToken -passwordResetExpires");
+  
+  if (!updatedAdmin) {
+    throw new ApiError(404, "Admin not found");
+  }
+  
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      { admin: updatedAdmin },
+      "Admin profile updated successfully"
+    )
+  );
+});
+
+// Get all customers
+export const getAllCustomers = asyncHandler(async (req, res) => {
+  const { 
+    search, 
+    sort = "createdAt", 
+    order = "desc", 
+    page = 1, 
+    limit = 10 
+  } = req.query;
+  
+  const queryOptions = {};
+  
+  // Search by name or email
+  if (search) {
+    queryOptions.$or = [
+      { firstName: { $regex: search, $options: "i" } },
+      { lastName: { $regex: search, $options: "i" } },
+      { email: { $regex: search, $options: "i" } }
+    ];
+  }
+  
+  // Calculate pagination
+  const skip = (parseInt(page) - 1) * parseInt(limit);
+  
+  // Prepare sort options
+  const sortOptions = {};
+  sortOptions[sort] = order === "asc" ? 1 : -1;
+  
+  // Get customers with pagination
+  const customers = await Customer.find(queryOptions)
+    .select("-password -passwordResetToken -passwordResetExpires")
+    .sort(sortOptions)
+    .skip(skip)
+    .limit(parseInt(limit));
+  
+  // Get total count
+  const totalCustomers = await Customer.countDocuments(queryOptions);
+  
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      { 
+        customers,
+        pagination: {
+          total: totalCustomers,
+          page: parseInt(page),
+          limit: parseInt(limit),
+          pages: Math.ceil(totalCustomers / parseInt(limit))
+        }
+      },
+      "Customers fetched successfully"
+    )
+  );
+});
+
+// Get customer by ID
+export const getCustomerById = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  
+  const customer = await Customer.findById(id)
+    .select("-password -passwordResetToken -passwordResetExpires");
+  
+  if (!customer) {
+    throw new ApiError(404, "Customer not found");
+  }
+  
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      { customer },
+      "Customer fetched successfully"
+    )
+  );
+});
+
+// Get all suppliers
+export const getAllSuppliers = asyncHandler(async (req, res) => {
+  const { 
+    search, 
+    status,
+    sort = "createdAt", 
+    order = "desc", 
+    page = 1, 
+    limit = 10 
+  } = req.query;
+  
+  const queryOptions = {};
+  
+  // Search by business name, owner name, or email
+  if (search) {
+    queryOptions.$or = [
+      { businessName: { $regex: search, $options: "i" } },
+      { ownerName: { $regex: search, $options: "i" } },
+      { email: { $regex: search, $options: "i" } }
+    ];
+  }
+  
+  // Filter by status
+  if (status) {
+    queryOptions.status = status;
+  }
+  
+  // Calculate pagination
+  const skip = (parseInt(page) - 1) * parseInt(limit);
+  
+  // Prepare sort options
+  const sortOptions = {};
+  sortOptions[sort] = order === "asc" ? 1 : -1;
+  
+  // Get suppliers with pagination
+  const suppliers = await Supplier.find(queryOptions)
+    .select("-password -passwordResetToken -passwordResetExpires")
+    .sort(sortOptions)
+    .skip(skip)
+    .limit(parseInt(limit));
+  
+  // Get total count
+  const totalSuppliers = await Supplier.countDocuments(queryOptions);
+  
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      { 
+        suppliers,
+        pagination: {
+          total: totalSuppliers,
+          page: parseInt(page),
+          limit: parseInt(limit),
+          pages: Math.ceil(totalSuppliers / parseInt(limit))
+        }
+      },
+      "Suppliers fetched successfully"
+    )
+  );
+});
+
+// Get supplier by ID
+export const getSupplierById = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  
+  const supplier = await Supplier.findById(id)
+    .select("-password -passwordResetToken -passwordResetExpires");
+  
+  if (!supplier) {
+    throw new ApiError(404, "Supplier not found");
+  }
+  
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      { supplier },
+      "Supplier fetched successfully"
+    )
+  );
+});
+
+// Update supplier verification status
+export const updateSupplierStatus = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { status, verificationNotes } = req.body;
+  
+  if (!status) {
+    throw new ApiError(400, "Status is required");
+  }
+  
+  // Validate status
+  if (!["pending", "approved", "rejected"].includes(status)) {
+    throw new ApiError(400, "Invalid status");
+  }
+  
+  const supplier = await Supplier.findById(id);
+  
+  if (!supplier) {
+    throw new ApiError(404, "Supplier not found");
+  }
+  
+  // Update status
+  supplier.status = status;
+  
+  // Add verification details if approved or rejected
+  if (status === "approved") {
+    supplier.verifiedAt = new Date();
+    supplier.verifiedBy = req.user._id;
+    supplier.verificationNotes = verificationNotes || "Approved by admin";
+  } else if (status === "rejected") {
+    supplier.verificationNotes = verificationNotes || "Rejected by admin";
+  }
+  
+  await supplier.save();
+  
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      { supplier },
+      `Supplier ${status} successfully`
+    )
+  );
+});
+
+// Verify supplier document
+export const verifySupplierDocument = asyncHandler(async (req, res) => {
+  const { supplierId, documentId } = req.params;
+  const { isVerified, notes } = req.body;
+  
+  if (isVerified === undefined) {
+    throw new ApiError(400, "Verification status is required");
+  }
+  
+  const supplier = await Supplier.findById(supplierId);
+  
+  if (!supplier) {
+    throw new ApiError(404, "Supplier not found");
+  }
+  
+  // Find document
+  const documentIndex = supplier.documents.findIndex(
+    doc => doc._id.toString() === documentId
+  );
+  
+  if (documentIndex === -1) {
+    throw new ApiError(404, "Document not found");
+  }
+  
+  // Update document verification
+  supplier.documents[documentIndex].isVerified = isVerified;
+  supplier.documents[documentIndex].verificationNotes = notes;
+  supplier.documents[documentIndex].verifiedAt = new Date();
+  supplier.documents[documentIndex].verifiedBy = req.user._id;
+  
+  await supplier.save();
+  
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      { document: supplier.documents[documentIndex] },
+      `Document ${isVerified ? 'verified' : 'rejected'} successfully`
+    )
+  );
+});
+
+// Get dashboard stats
+export const getDashboardStats = asyncHandler(async (req, res) => {
+  // Get customer stats
+  const totalCustomers = await Customer.countDocuments();
+  const newCustomers = await Customer.countDocuments({
+    createdAt: { $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) } // Last 30 days
+  });
+  
+  // Get supplier stats
+  const totalSuppliers = await Supplier.countDocuments();
+  const pendingSuppliers = await Supplier.countDocuments({ status: "pending" });
+  const approvedSuppliers = await Supplier.countDocuments({ status: "approved" });
+  
+  // Get product stats
+  const totalProducts = await Product.countDocuments();
+  const activeProducts = await Product.countDocuments({ isActive: true });
+  
+  // Get order stats
+  const totalOrders = await Order.countDocuments();
+  const pendingOrders = await Order.countDocuments({ status: "pending" });
+  const processingOrders = await Order.countDocuments({ status: "processing" });
+  const deliveredOrders = await Order.countDocuments({ status: "delivered" });
+  
+  // Get category stats
+  const totalCategories = await Category.countDocuments();
+  
+  // Get revenue stats
+  const today = new Date();
+  const startOfToday = new Date(today.setHours(0, 0, 0, 0));
+  const endOfToday = new Date(today.setHours(23, 59, 59, 999));
+  
+  const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+  const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0, 23, 59, 59, 999);
+  
+  // Today's revenue
+  const todayRevenue = await Order.aggregate([
+    { 
+      $match: { 
+        status: { $in: ["delivered", "processing", "out_for_delivery"] },
+        createdAt: { $gte: startOfToday, $lte: endOfToday }
+      } 
+    },
+    { 
+      $group: { 
+        _id: null, 
+        total: { $sum: "$totalAmount" } 
+      } 
+    }
+  ]);
+  
+  // Monthly revenue
+  const monthlyRevenue = await Order.aggregate([
+    { 
+      $match: { 
+        status: { $in: ["delivered", "processing", "out_for_delivery"] },
+        createdAt: { $gte: startOfMonth, $lte: endOfMonth }
+      } 
+    },
+    { 
+      $group: { 
+        _id: null, 
+        total: { $sum: "$totalAmount" } 
+      } 
+    }
+  ]);
+  
+  // Total revenue
+  const totalRevenue = await Order.aggregate([
+    { 
+      $match: { 
+        status: { $in: ["delivered", "processing", "out_for_delivery"] }
+      } 
+    },
+    { 
+      $group: { 
+        _id: null, 
+        total: { $sum: "$totalAmount" } 
+      } 
+    }
+  ]);
+  
+  // Get recent orders
+  const recentOrders = await Order.find()
+    .populate("customer", "firstName lastName")
+    .populate("supplier", "businessName")
+    .sort({ createdAt: -1 })
+    .limit(5);
+  
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      { 
+        customers: {
+          total: totalCustomers,
+          new: newCustomers
+        },
+        suppliers: {
+          total: totalSuppliers,
+          pending: pendingSuppliers,
+          approved: approvedSuppliers
+        },
+        products: {
+          total: totalProducts,
+          active: activeProducts
+        },
+        orders: {
+          total: totalOrders,
+          pending: pendingOrders,
+          processing: processingOrders,
+          delivered: deliveredOrders
+        },
+        categories: {
+          total: totalCategories
+        },
+        revenue: {
+          today: todayRevenue.length > 0 ? todayRevenue[0].total : 0,
+          monthly: monthlyRevenue.length > 0 ? monthlyRevenue[0].total : 0,
+          total: totalRevenue.length > 0 ? totalRevenue[0].total : 0
+        },
+        recentOrders
+      },
+      "Dashboard stats fetched successfully"
+    )
+  );
+});
+
+// Get revenue analytics
+export const getRevenueAnalytics = asyncHandler(async (req, res) => {
+  const { period = "daily", startDate, endDate } = req.query;
+  
+  let groupBy;
+  let dateFormat;
+  let matchQuery = {};
+  
+  // Set default date range if not provided
+  const today = new Date();
+  const defaultEndDate = new Date();
+  let defaultStartDate;
+  
+  if (period === "daily") {
+    defaultStartDate = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 30);
+    groupBy = { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } };
+    dateFormat = "YYYY-MM-DD";
+  } else if (period === "weekly") {
+    defaultStartDate = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 12 * 7);
+    groupBy = { 
+      $concat: [
+        { $toString: { $year: "$createdAt" } },
+        "-W",
+        { $toString: { $week: "$createdAt" } }
+      ]
+    };
+    dateFormat = "YYYY-Www";
+  } else if (period === "monthly") {
+    defaultStartDate = new Date(today.getFullYear() - 1, today.getMonth(), 1);
+    groupBy = { $dateToString: { format: "%Y-%m", date: "$createdAt" } };
+    dateFormat = "YYYY-MM";
+  } else {
+    throw new ApiError(400, "Invalid period. Use daily, weekly, or monthly");
+  }
+  
+  // Set date range
+  if (startDate && endDate) {
+    matchQuery.createdAt = {
+      $gte: new Date(startDate),
+      $lte: new Date(endDate)
+    };
+  } else {
+    matchQuery.createdAt = {
+      $gte: defaultStartDate,
+      $lte: defaultEndDate
+    };
+  }
+  
+  // Only include completed or processing orders
+  matchQuery.status = { $in: ["delivered", "processing", "out_for_delivery"] };
+  
+  // Get revenue data
+  const revenueData = await Order.aggregate([
+    { $match: matchQuery },
+    { 
+      $group: { 
+        _id: groupBy,
+        revenue: { $sum: "$totalAmount" },
+        count: { $sum: 1 }
+      } 
+    },
+    { $sort: { _id: 1 } }
+  ]);
+  
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      { 
+        analytics: {
+          period,
+          dateFormat,
+          data: revenueData
+        }
+      },
+      "Revenue analytics fetched successfully"
+    )
+  );
+});
+
+// Get product analytics
+export const getProductAnalytics = asyncHandler(async (req, res) => {
+  // Get top selling products
+  const topSellingProducts = await Order.aggregate([
+    { $match: { status: { $in: ["delivered", "processing", "out_for_delivery"] } } },
+    { $unwind: "$items" },
+    { 
+      $group: { 
+        _id: "$items.product",
+        totalSold: { $sum: "$items.quantity" },
+        revenue: { $sum: "$items.totalPrice" }
+      } 
+    },
+    { $sort: { totalSold: -1 } },
+    { $limit: 10 },
+    {
+      $lookup: {
+        from: "products",
+        localField: "_id",
+        foreignField: "_id",
+        as: "product"
+      }
+    },
+    {
+      $project: {
+        _id: 1,
+        totalSold: 1,
+        revenue: 1,
+        product: { $arrayElemAt: ["$product", 0] }
+      }
+    },
+    {
+      $project: {
+        _id: 1,
+        totalSold: 1,
+        revenue: 1,
+        "product.name": 1,
+        "product.images": 1,
+        "product.price": 1,
+        "product.discountedPrice": 1
+      }
+    }
+  ]);
+  
+  // Get top categories
+  const topCategories = await Order.aggregate([
+    { $match: { status: { $in: ["delivered", "processing", "out_for_delivery"] } } },
+    { $unwind: "$items" },
+    {
+      $lookup: {
+        from: "products",
+        localField: "items.product",
+        foreignField: "_id",
+        as: "product"
+      }
+    },
+    { $unwind: "$product" },
+    { 
+      $group: { 
+        _id: "$product.categoryId",
+        totalSold: { $sum: "$items.quantity" },
+        revenue: { $sum: "$items.totalPrice" }
+      } 
+    },
+    { $sort: { totalSold: -1 } },
+    { $limit: 5 },
+    {
+      $lookup: {
+        from: "categories",
+        localField: "_id",
+        foreignField: "_id",
+        as: "category"
+      }
+    },
+    {
+      $project: {
+        _id: 1,
+        totalSold: 1,
+        revenue: 1,
+        category: { $arrayElemAt: ["$category", 0] }
+      }
+    },
+    {
+      $project: {
+        _id: 1,
+        totalSold: 1,
+        revenue: 1,
+        "category.name": 1,
+        "category.image": 1
+      }
+    }
+  ]);
+  
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      { 
+        topSellingProducts,
+        topCategories
+      },
+      "Product analytics fetched successfully"
+    )
+  );
+});
+
+// Get customer analytics
+export const getCustomerAnalytics = asyncHandler(async (req, res) => {
+  // Get top customers by order count
+  const topCustomersByOrders = await Order.aggregate([
+    { $match: { status: { $in: ["delivered", "processing", "out_for_delivery"] } } },
+    { 
+      $group: { 
+        _id: "$customer",
+        orderCount: { $sum: 1 },
+        totalSpent: { $sum: "$totalAmount" }
+      } 
+    },
+    { $sort: { orderCount: -1 } },
+    { $limit: 10 },
+    {
+      $lookup: {
+        from: "customers",
+        localField: "_id",
+        foreignField: "_id",
+        as: "customer"
+      }
+    },
+    {
+      $project: {
+        _id: 1,
+        orderCount: 1,
+        totalSpent: 1,
+        customer: { $arrayElemAt: ["$customer", 0] }
+      }
+    },
+    {
+      $project: {
+        _id: 1,
+        orderCount: 1,
+        totalSpent: 1,
+        "customer.firstName": 1,
+        "customer.lastName": 1,
+        "customer.email": 1,
+        "customer.profileImage": 1
+      }
+    }
+  ]);
+  
+  // Get top customers by spending
+  const topCustomersBySpending = await Order.aggregate([
+    { $match: { status: { $in: ["delivered", "processing", "out_for_delivery"] } } },
+    { 
+      $group: { 
+        _id: "$customer",
+        orderCount: { $sum: 1 },
+        totalSpent: { $sum: "$totalAmount" }
+      } 
+    },
+    { $sort: { totalSpent: -1 } },
+    { $limit: 10 },
+    {
+      $lookup: {
+        from: "customers",
+        localField: "_id",
+        foreignField: "_id",
+        as: "customer"
+      }
+    },
+    {
+      $project: {
+        _id: 1,
+        orderCount: 1,
+        totalSpent: 1,
+        customer: { $arrayElemAt: ["$customer", 0] }
+      }
+    },
+    {
+      $project: {
+        _id: 1,
+        orderCount: 1,
+        totalSpent: 1,
+        "customer.firstName": 1,
+        "customer.lastName": 1,
+        "customer.email": 1,
+        "customer.profileImage": 1
+      }
+    }
+  ]);
+  
+  // Get new customer registrations over time
+  const today = new Date();
+  const startDate = new Date(today.getFullYear(), today.getMonth() - 6, 1);
+  
+  const newCustomers = await Customer.aggregate([
+    { $match: { createdAt: { $gte: startDate } } },
+    {
+      $group: {
+        _id: { $dateToString: { format: "%Y-%m", date: "$createdAt" } },
+        count: { $sum: 1 }
+      }
+    },
+    { $sort: { _id: 1 } }
+  ]);
+  
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      { 
+        topCustomersByOrders,
+        topCustomersBySpending,
+        newCustomers
+      },
+      "Customer analytics fetched successfully"
+    )
+  );
+});

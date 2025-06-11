@@ -1,0 +1,492 @@
+import Order from "../models/order.model.js";
+import Product from "../models/product.model.js";
+import Cart from "../models/cart.model.js";
+import Customer from "../models/customer.model.js";
+import { ApiError } from "../utils/ApiError.js";
+import { ApiResponse } from "../utils/ApiResponse.js";
+import { asyncHandler } from "../utils/asyncHandler.js";
+
+// Create a new order
+export const createOrder = asyncHandler(async (req, res) => {
+  const { 
+    items, 
+    deliveryAddress, 
+    paymentMethod, 
+    couponCode,
+    isExpressDelivery,
+    notes
+  } = req.body;
+  
+  // Validate required fields
+  if (!items || !items.length || !deliveryAddress || !paymentMethod) {
+    throw new ApiError(400, "Items, delivery address, and payment method are required");
+  }
+  
+  // Group items by supplier
+  const itemsBySupplier = {};
+  
+  // Validate items and calculate totals
+  for (const item of items) {
+    if (!item.product || !item.quantity) {
+      throw new ApiError(400, "Product ID and quantity are required for each item");
+    }
+    
+    // Get product details
+    const product = await Product.findById(item.product);
+    if (!product) {
+      throw new ApiError(404, `Product not found: ${item.product}`);
+    }
+    
+    // Check stock
+    if (product.stockQuantity < item.quantity) {
+      throw new ApiError(400, `Insufficient stock for ${product.name}`);
+    }
+    
+    // Get variation if specified
+    let variationPrice = 0;
+    if (item.variation) {
+      const variation = product.variations.find(v => 
+        v.name === item.variation.name && v.value === item.variation.value
+      );
+      
+      if (variation) {
+        variationPrice = variation.additionalPrice || 0;
+        
+        // Check variation stock
+        if (variation.stockQuantity < item.quantity) {
+          throw new ApiError(400, `Insufficient stock for ${product.name} (${variation.name}: ${variation.value})`);
+        }
+      }
+    }
+    
+    // Calculate price
+    const price = product.price + variationPrice;
+    const discountedPrice = product.discountedPrice 
+      ? product.discountedPrice + variationPrice 
+      : price;
+    
+    // Group by supplier
+    const supplierId = product.supplierId.toString();
+    if (!itemsBySupplier[supplierId]) {
+      itemsBySupplier[supplierId] = [];
+    }
+    
+    // Add item to supplier group
+    itemsBySupplier[supplierId].push({
+      product: product._id,
+      quantity: item.quantity,
+      price,
+      discountedPrice,
+      variation: item.variation,
+      totalPrice: item.quantity * discountedPrice
+    });
+  }
+  
+  // Create orders for each supplier
+  const orders = [];
+  
+  for (const supplierId in itemsBySupplier) {
+    const supplierItems = itemsBySupplier[supplierId];
+    
+    // Calculate subtotal
+    const subtotal = supplierItems.reduce((sum, item) => sum + item.totalPrice, 0);
+    
+    // Calculate delivery charge
+    const deliveryCharge = isExpressDelivery ? 50 : 20; // Example values
+    
+    // Calculate taxes (example: 5% of subtotal)
+    const taxes = Math.round(subtotal * 0.05);
+    
+    // Calculate discount amount (if coupon applied)
+    let discountAmount = 0;
+    if (couponCode) {
+      // In a real application, validate coupon code and calculate discount
+      // For now, use a placeholder value
+      discountAmount = Math.round(subtotal * 0.1); // 10% discount
+    }
+    
+    // Calculate total amount
+    const totalAmount = subtotal - discountAmount + taxes + deliveryCharge;
+    
+    // Create order
+    const order = await Order.create({
+      customer: req.user._id,
+      supplier: supplierId,
+      items: supplierItems,
+      subtotal,
+      couponCode,
+      discountAmount,
+      taxes,
+      deliveryCharge,
+      totalAmount,
+      paymentMethod,
+      status: "pending",
+      isExpressDelivery: isExpressDelivery || false,
+      deliveryAddress,
+      notes,
+      estimatedDeliveryDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000) // 3 days from now
+    });
+    
+    // Add status history entry
+    order.statusHistory.push({
+      status: "pending",
+      updatedAt: new Date(),
+      updatedBy: req.user._id,
+      updatedByModel: "Customer"
+    });
+    
+    await order.save();
+    
+    // Update product stock
+    for (const item of supplierItems) {
+      const product = await Product.findById(item.product);
+      
+      // Update main stock
+      product.stockQuantity -= item.quantity;
+      
+      // Update variation stock if applicable
+      if (item.variation) {
+        const variationIndex = product.variations.findIndex(v => 
+          v.name === item.variation.name && v.value === item.variation.value
+        );
+        
+        if (variationIndex !== -1) {
+          product.variations[variationIndex].stockQuantity -= item.quantity;
+        }
+      }
+      
+      await product.save();
+    }
+    
+    orders.push(order);
+  }
+  
+  // Clear customer's cart if order was created from cart
+  if (req.body.clearCart) {
+    const cart = await Cart.findOne({ customer: req.user._id });
+    if (cart) {
+      cart.items = [];
+      cart.subtotal = 0;
+      await cart.save();
+    }
+  }
+  
+  return res.status(201).json(
+    new ApiResponse(
+      201,
+      { orders },
+      "Orders created successfully"
+    )
+  );
+});
+
+// Get all orders (admin only)
+export const getAllOrders = asyncHandler(async (req, res) => {
+  const { 
+    status, 
+    customerId, 
+    supplierId, 
+    startDate, 
+    endDate, 
+    sort = "createdAt", 
+    order = "desc", 
+    page = 1, 
+    limit = 10 
+  } = req.query;
+  
+  const queryOptions = {};
+  
+  // Filter by status
+  if (status) {
+    queryOptions.status = status;
+  }
+  
+  // Filter by customer
+  if (customerId) {
+    queryOptions.customer = customerId;
+  }
+  
+  // Filter by supplier
+  if (supplierId) {
+    queryOptions.supplier = supplierId;
+  }
+  
+  // Filter by date range
+  if (startDate && endDate) {
+    queryOptions.createdAt = {
+      $gte: new Date(startDate),
+      $lte: new Date(endDate)
+    };
+  } else if (startDate) {
+    queryOptions.createdAt = { $gte: new Date(startDate) };
+  } else if (endDate) {
+    queryOptions.createdAt = { $lte: new Date(endDate) };
+  }
+  
+  // Calculate pagination
+  const skip = (parseInt(page) - 1) * parseInt(limit);
+  
+  // Prepare sort options
+  const sortOptions = {};
+  sortOptions[sort] = order === "asc" ? 1 : -1;
+  
+  // Get orders with pagination
+  const orders = await Order.find(queryOptions)
+    .populate("customer", "firstName lastName email")
+    .populate("supplier", "businessName")
+    .populate("items.product", "name images")
+    .sort(sortOptions)
+    .skip(skip)
+    .limit(parseInt(limit));
+  
+  // Get total count
+  const totalOrders = await Order.countDocuments(queryOptions);
+  
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      { 
+        orders,
+        pagination: {
+          total: totalOrders,
+          page: parseInt(page),
+          limit: parseInt(limit),
+          pages: Math.ceil(totalOrders / parseInt(limit))
+        }
+      },
+      "Orders fetched successfully"
+    )
+  );
+});
+
+// Get order by ID
+export const getOrderById = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  
+  const order = await Order.findById(id)
+    .populate("customer", "firstName lastName email phone")
+    .populate("supplier", "businessName email phone")
+    .populate("items.product", "name images")
+    .populate("deliveryAssociate.associate", "name phone");
+  
+  if (!order) {
+    throw new ApiError(404, "Order not found");
+  }
+  
+  // Check authorization
+  const isCustomer = req.user.role === "customer" && order.customer._id.toString() === req.user._id.toString();
+  const isSupplier = req.user.role === "supplier" && order.supplier._id.toString() === req.user._id.toString();
+  const isAdmin = req.user.role === "admin";
+  const isDeliveryAssociate = req.user.role === "deliveryAssociate" && 
+    order.deliveryAssociate?.associate?.toString() === req.user._id.toString();
+  
+  if (!isCustomer && !isSupplier && !isAdmin && !isDeliveryAssociate) {
+    throw new ApiError(403, "You are not authorized to view this order");
+  }
+  
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      { order },
+      "Order fetched successfully"
+    )
+  );
+});
+
+// Update order status
+export const updateOrderStatus = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { status, note } = req.body;
+  
+  if (!status) {
+    throw new ApiError(400, "Status is required");
+  }
+  
+  const order = await Order.findById(id);
+  
+  if (!order) {
+    throw new ApiError(404, "Order not found");
+  }
+  
+  // Check authorization
+  const isCustomer = req.user.role === "customer" && order.customer.toString() === req.user._id.toString();
+  const isSupplier = req.user.role === "supplier" && order.supplier.toString() === req.user._id.toString();
+  const isAdmin = req.user.role === "admin";
+  const isDeliveryAssociate = req.user.role === "deliveryAssociate" && 
+    order.deliveryAssociate?.associate?.toString() === req.user._id.toString();
+  
+  if (!isCustomer && !isSupplier && !isAdmin && !isDeliveryAssociate) {
+    throw new ApiError(403, "You are not authorized to update this order");
+  }
+  
+  // Validate status transition based on role
+  const validTransitions = {
+    customer: {
+      pending: ["cancelled"],
+      delivered: ["returned"]
+    },
+    supplier: {
+      pending: ["processing", "cancelled"],
+      processing: ["out_for_delivery", "cancelled"],
+      out_for_delivery: ["delivered", "cancelled"]
+    },
+    admin: {
+      pending: ["processing", "cancelled"],
+      processing: ["out_for_delivery", "cancelled"],
+      out_for_delivery: ["delivered", "cancelled"],
+      delivered: ["returned"],
+      cancelled: ["pending"],
+      returned: ["processing"]
+    },
+    deliveryAssociate: {
+      out_for_delivery: ["delivered"]
+    }
+  };
+  
+  const roleTransitions = validTransitions[req.user.role];
+  if (!roleTransitions || !roleTransitions[order.status] || !roleTransitions[order.status].includes(status)) {
+    throw new ApiError(400, `Cannot transition from ${order.status} to ${status} as ${req.user.role}`);
+  }
+  
+  // Update order status
+  order.status = status;
+  
+  // Add status history entry
+  order.statusHistory.push({
+    status,
+    updatedAt: new Date(),
+    updatedBy: req.user._id,
+    updatedByModel: req.user.role === "customer" ? "Customer" : 
+                    req.user.role === "supplier" ? "Supplier" : 
+                    req.user.role === "admin" ? "Admin" : "DeliveryAssociate",
+    note: note || ""
+  });
+  
+  // Update delivered date if status is delivered
+  if (status === "delivered") {
+    order.deliveredAt = new Date();
+  }
+  
+  await order.save();
+  
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      { order },
+      "Order status updated successfully"
+    )
+  );
+});
+
+// Assign delivery associate to order
+export const assignDeliveryAssociate = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { deliveryAssociateId } = req.body;
+  
+  if (!deliveryAssociateId) {
+    throw new ApiError(400, "Delivery associate ID is required");
+  }
+  
+  const order = await Order.findById(id);
+  
+  if (!order) {
+    throw new ApiError(404, "Order not found");
+  }
+  
+  // Check authorization (only admin or supplier can assign)
+  const isSupplier = req.user.role === "supplier" && order.supplier.toString() === req.user._id.toString();
+  const isAdmin = req.user.role === "admin";
+  
+  if (!isSupplier && !isAdmin) {
+    throw new ApiError(403, "You are not authorized to assign delivery associate");
+  }
+  
+  // Check if order status is valid for assignment
+  if (order.status !== "processing") {
+    throw new ApiError(400, "Delivery associate can only be assigned to orders in processing status");
+  }
+  
+  // Update delivery associate
+  order.deliveryAssociate = {
+    associate: deliveryAssociateId,
+    assignedAt: new Date(),
+    status: "assigned"
+  };
+  
+  await order.save();
+  
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      { order },
+      "Delivery associate assigned successfully"
+    )
+  );
+});
+
+// Update delivery status
+export const updateDeliveryStatus = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { status, note } = req.body;
+  
+  if (!status) {
+    throw new ApiError(400, "Status is required");
+  }
+  
+  const order = await Order.findById(id);
+  
+  if (!order) {
+    throw new ApiError(404, "Order not found");
+  }
+  
+  // Check authorization (only delivery associate assigned to this order can update)
+  const isAssignedDeliveryAssociate = 
+    req.user.role === "deliveryAssociate" && 
+    order.deliveryAssociate?.associate?.toString() === req.user._id.toString();
+  
+  if (!isAssignedDeliveryAssociate) {
+    throw new ApiError(403, "You are not authorized to update delivery status");
+  }
+  
+  // Validate status transition
+  const validTransitions = {
+    assigned: ["picked_up"],
+    picked_up: ["on_the_way"],
+    on_the_way: ["delivered", "failed"],
+    delivered: [],
+    failed: []
+  };
+  
+  if (!validTransitions[order.deliveryAssociate.status] || 
+      !validTransitions[order.deliveryAssociate.status].includes(status)) {
+    throw new ApiError(400, `Cannot transition from ${order.deliveryAssociate.status} to ${status}`);
+  }
+  
+  // Update delivery status
+  order.deliveryAssociate.status = status;
+  
+  // Update order status if delivery status is delivered
+  if (status === "delivered") {
+    order.status = "delivered";
+    order.deliveredAt = new Date();
+    
+    // Add status history entry
+    order.statusHistory.push({
+      status: "delivered",
+      updatedAt: new Date(),
+      updatedBy: req.user._id,
+      updatedByModel: "DeliveryAssociate",
+      note: note || "Delivered by delivery associate"
+    });
+  }
+  
+  await order.save();
+  
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      { order },
+      "Delivery status updated successfully"
+    )
+  );
+});
