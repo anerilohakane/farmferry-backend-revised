@@ -5,7 +5,8 @@ import {
   getOrderById,
   updateOrderStatus,
   assignDeliveryAssociate,
-  updateDeliveryStatus
+  updateDeliveryStatus,
+  getMyOrders
 } from "../controllers/order.controller.js";
 import { verifyJWT, authorizeRoles } from "../middlewares/auth.middleware.js";
 
@@ -22,6 +23,9 @@ router.get("/:id", getOrderById);
 
 // Admin routes
 router.get("/", authorizeRoles("admin"), getAllOrders);
+
+// Supplier routes
+router.get("/supplier/me", authorizeRoles("supplier"), getMyOrders);
 
 // Supplier and admin routes
 router.put(

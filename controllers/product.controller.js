@@ -398,25 +398,71 @@ export const deleteProduct = asyncHandler(async (req, res) => {
   );
 });
 
-
 export const getMyProducts = asyncHandler(async (req, res) => {
   const { page = 1, limit = 10 } = req.query;
   
-  const products = await Product.find({ supplier: req.user._id })
-    .skip((page - 1) * limit)
-    .limit(limit);
-    
-  res.json(new ApiResponse(200, 'Products retrieved', products));
+  // Calculate pagination
+  const skip = (parseInt(page) - 1) * parseInt(limit);
+  
+  // Get products with pagination
+  const products = await Product.find({ supplierId: req.user._id })
+    .populate("categoryId", "name")
+    .populate("supplierId", "businessName")
+    .sort({ createdAt: -1 })
+    .skip(skip)
+    .limit(parseInt(limit));
+  
+  // Get total count
+  const totalProducts = await Product.countDocuments({ supplierId: req.user._id });
+  
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      { 
+        products,
+        pagination: {
+          total: totalProducts,
+          page: parseInt(page),
+          limit: parseInt(limit),
+          pages: Math.ceil(totalProducts / parseInt(limit))
+        }
+      },
+      "Products fetched successfully"
+    )
+  );
 });
-
 
 export const getProductsBySupplier = asyncHandler(async (req, res) => {
   const { supplierId } = req.params;
   const { page = 1, limit = 10 } = req.query;
   
-  const products = await Product.find({ supplier: supplierId })
-    .skip((page - 1) * limit)
-    .limit(limit);
-    
-  res.json(new ApiResponse(200, 'Products retrieved', products));
+  // Calculate pagination
+  const skip = (parseInt(page) - 1) * parseInt(limit);
+  
+  // Get products with pagination
+  const products = await Product.find({ supplierId })
+    .populate("categoryId", "name")
+    .populate("supplierId", "businessName")
+    .sort({ createdAt: -1 })
+    .skip(skip)
+    .limit(parseInt(limit));
+  
+  // Get total count
+  const totalProducts = await Product.countDocuments({ supplierId });
+  
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      { 
+        products,
+        pagination: {
+          total: totalProducts,
+          page: parseInt(page),
+          limit: parseInt(limit),
+          pages: Math.ceil(totalProducts / parseInt(limit))
+        }
+      },
+      "Products fetched successfully"
+    )
+  );
 });

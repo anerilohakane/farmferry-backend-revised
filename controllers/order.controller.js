@@ -490,3 +490,75 @@ export const updateDeliveryStatus = asyncHandler(async (req, res) => {
     )
   );
 });
+
+// Get my orders (supplier only)
+export const getMyOrders = asyncHandler(async (req, res) => {
+  const { 
+    status, 
+    startDate, 
+    endDate, 
+    sort = "createdAt", 
+    order = "desc", 
+    page = 1, 
+    limit = 10 
+  } = req.query;
+  
+  const queryOptions = { supplier: req.user._id };
+  
+  // Filter by status
+  if (status) {
+    queryOptions.status = status;
+  }
+  
+  // Filter by date range
+  if (startDate || endDate) {
+    queryOptions.createdAt = {};
+    if (startDate) queryOptions.createdAt.$gte = new Date(startDate);
+    if (endDate) queryOptions.createdAt.$lte = new Date(endDate);
+  }
+  
+  // Calculate pagination
+  const skip = (parseInt(page) - 1) * parseInt(limit);
+  
+  // Prepare sort options
+  const sortOptions = {};
+  sortOptions[sort] = order === "asc" ? 1 : -1;
+  
+  // Get orders with pagination
+  const orders = await Order.find(queryOptions)
+    .populate("customer", "firstName lastName email phone")
+    .populate("items.product", "name images price discountedPrice")
+    .populate("deliveryAssociate.associate", "firstName lastName phone")
+    .sort(sortOptions)
+    .skip(skip)
+    .limit(parseInt(limit));
+  
+  // Get total count
+  const totalOrders = await Order.countDocuments(queryOptions);
+  
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      { 
+        orders,
+        pagination: {
+          total: totalOrders,
+          page: parseInt(page),
+          limit: parseInt(limit),
+          pages: Math.ceil(totalOrders / parseInt(limit))
+        }
+      },
+      "Orders fetched successfully"
+    )
+  );
+});
+
+export default {
+  createOrder,
+  getAllOrders,
+  getOrderById,
+  updateOrderStatus,
+  assignDeliveryAssociate,
+  updateDeliveryStatus,
+  getMyOrders
+};

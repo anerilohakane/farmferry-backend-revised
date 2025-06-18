@@ -49,17 +49,15 @@ router.delete(
 );
 
 router.get(
-  '/supplier/:supplierId',
-  
-  authorizeRoles('admin', 'supplier'),
-  getProductsBySupplier
+  '/supplier/me',
+  authorizeRoles('supplier'),
+  getMyProducts
 );
 
 router.get(
-  '/supplier/me',
-  
-  authorizeRoles('supplier'),
-  getMyProducts
+  '/supplier/:supplierId',
+  authorizeRoles('admin', 'supplier'),
+  getProductsBySupplier
 );
 
 export default router;
