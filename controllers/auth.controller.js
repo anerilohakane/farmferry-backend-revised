@@ -2,6 +2,7 @@ import crypto from "crypto";
 import Customer from "../models/customer.model.js";
 import Supplier from "../models/supplier.model.js";
 import Admin from "../models/admin.model.js";
+import DeliveryAssociate from "../models/deliveryAssociate.model.js";
 import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
@@ -609,6 +610,63 @@ export const changePassword = asyncHandler(async (req, res) => {
       200,
       {},
       "Password changed successfully"
+    )
+  );
+});
+
+// Delivery Associate Login
+export const loginDeliveryAssociate = asyncHandler(async (req, res) => {
+  const { phone, password } = req.body;
+
+  if (!phone || !password) {
+    throw new ApiError(400, "Phone and password are required");
+  }
+
+  const deliveryAssociate = await DeliveryAssociate.findOne({ phone });
+  if (!deliveryAssociate) {
+    throw new ApiError(404, "Delivery associate not found");
+  }
+
+  const isPasswordValid = await deliveryAssociate.isPasswordCorrect(password);
+  if (!isPasswordValid) {
+    throw new ApiError(401, "Invalid credentials");
+  }
+
+  deliveryAssociate.lastLogin = new Date();
+  await deliveryAssociate.save();
+
+  const { accessToken, refreshToken } = await generateTokensAndSetCookies(deliveryAssociate, res);
+
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      {
+        user: {
+          _id: deliveryAssociate._id,
+          name: deliveryAssociate.name,
+          email: deliveryAssociate.email,
+          phone: deliveryAssociate.phone,
+          isVerified: deliveryAssociate.isVerified,
+          vehicle: deliveryAssociate.vehicle,
+        },
+        token: accessToken,
+        refreshToken,
+      },
+      "Delivery associate logged in successfully"
+    )
+  );
+});
+
+export const getDeliveryAssociateMe = asyncHandler(async (req, res) => {
+  const deliveryAssociate = await DeliveryAssociate.findById(req.user.id).select("-password -passwordResetToken -passwordResetExpires");
+  if (!deliveryAssociate) {
+    throw new ApiError(404, "Delivery associate not found");
+  }
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      deliveryAssociate,
+      "Delivery associate profile fetched successfully"
     )
   );
 });

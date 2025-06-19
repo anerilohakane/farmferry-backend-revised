@@ -12,7 +12,9 @@ import {
   resetPassword,
   changePassword,
   sendPhoneVerification,
-  verifyPhone
+  verifyPhone,
+  loginDeliveryAssociate,
+  getDeliveryAssociateMe
 } from "../controllers/auth.controller.js";
 import { verifyJWT } from "../middlewares/auth.middleware.js";
 
@@ -27,6 +29,7 @@ router.post("/register/admin", registerAdmin);
 router.post("/login/customer", loginCustomer);
 router.post("/login/supplier", loginSupplier);
 router.post("/login/admin", loginAdmin);
+router.post("/login/delivery-associate", loginDeliveryAssociate);
 
 // Logout route
 router.post("/logout", verifyJWT, logout);
@@ -42,5 +45,7 @@ router.post("/change-password", verifyJWT, changePassword);
 // Phone verification routes
 router.post("/send-phone-verification", sendPhoneVerification);
 router.post("/verify-phone", verifyPhone);
+
+router.get("/me/delivery-associate", verifyJWT, getDeliveryAssociateMe);
 
 export default router;
