@@ -26,7 +26,10 @@ export const verifyJWT = asyncHandler(async (req, res, next) => {
     if (decodedToken.role === "admin") {
       user = await Admin.findById(decodedToken.id).select("-password");
     } else if (decodedToken.role === "supplier") {
-      user = await Supplier.findById(decodedToken.id).select("-supplierPassword");
+      user = await Supplier.findById(decodedToken.id).select("-password");
+    } else if (decodedToken.role === "deliveryAssociate") {
+      const DeliveryAssociate = (await import("../models/deliveryAssociate.model.js")).default;
+      user = await DeliveryAssociate.findById(decodedToken.id).select("-password -passwordResetToken -passwordResetExpires");
     } else {
       user = await Customer.findById(decodedToken.id).select("-password");
     }
