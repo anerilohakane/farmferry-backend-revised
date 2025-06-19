@@ -3,6 +3,11 @@
  */
 const errorHandler = (err, req, res, next) => {
   const statusCode = err.statusCode || 500;
+
+  // Log full error to console for debugging (except during tests)
+  if (process.env.NODE_ENV !== "test") {
+    console.error(err);
+  }
   
   // Default error response
   const errorResponse = {
