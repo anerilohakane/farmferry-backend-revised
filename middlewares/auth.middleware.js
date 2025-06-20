@@ -26,7 +26,7 @@ export const verifyJWT = asyncHandler(async (req, res, next) => {
     if (decodedToken.role === "admin") {
       user = await Admin.findById(decodedToken.id).select("-password");
     } else if (decodedToken.role === "supplier") {
-      user = await Supplier.findById(decodedToken.id).select("-supplierPassword");
+      user = await Supplier.findById(decodedToken.id).select("-password");
     } else {
       user = await Customer.findById(decodedToken.id).select("-password");
     }

@@ -9,7 +9,8 @@ import {
   getSupplierProducts,
   getSupplierOrders,
   updateOrderStatus,
-  getSupplierDashboardStats
+  getSupplierDashboardStats,
+  getSupplierOrderById
 } from "../controllers/supplier.controller.js";
 import { verifyJWT, authorizeRoles } from "../middlewares/auth.middleware.js";
 import { upload } from "../middlewares/multer.middleware.js";
@@ -32,6 +33,7 @@ router.get("/products", getSupplierProducts);
 
 // Order routes
 router.get("/orders", getSupplierOrders);
+router.get("/orders/:id", getSupplierOrderById);
 router.put("/orders/:id/status", updateOrderStatus);
 
 // Dashboard stats

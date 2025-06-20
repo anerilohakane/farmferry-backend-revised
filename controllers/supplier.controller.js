@@ -6,6 +6,7 @@ import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { uploadToCloudinary, deleteFromCloudinary } from "../config/cloudinary.js";
+import mongoose from "mongoose";
 
 // Get supplier profile
 export const getSupplierProfile = asyncHandler(async (req, res) => {
@@ -14,11 +15,18 @@ export const getSupplierProfile = asyncHandler(async (req, res) => {
   if (!supplier) {
     throw new ApiError(404, "Supplier not found");
   }
+
+  // Count total orders for this supplier (ensure ObjectId type)
+  const totalOrders = await Order.countDocuments({ supplier: new mongoose.Types.ObjectId(req.user._id) });
+
+  // Convert supplier to object and add totalOrders
+  const supplierObj = supplier.toObject();
+  supplierObj.totalOrders = totalOrders;
   
   return res.status(200).json(
     new ApiResponse(
       200,
-      { supplier },
+      { supplier: supplierObj },
       "Supplier profile fetched successfully"
     )
   );
@@ -332,6 +340,10 @@ export const getSupplierProducts = asyncHandler(async (req, res) => {
 
 // Get supplier orders
 export const getSupplierOrders = asyncHandler(async (req, res) => {
+  console.log('🔄 getSupplierOrders called');
+  console.log('👤 Supplier ID:', req.user._id);
+  console.log('📝 Query params:', req.query);
+  
   const { 
     status, 
     customerId, 
@@ -340,10 +352,18 @@ export const getSupplierOrders = asyncHandler(async (req, res) => {
     sort = "createdAt", 
     order = "desc", 
     page = 1, 
-    limit = 10 
+    limit = 10,
+    debugAll = false
   } = req.query;
   
-  const queryOptions = { supplier: req.user._id };
+  let queryOptions;
+  if (debugAll === 'true') {
+    // Debug mode: return all orders
+    queryOptions = {};
+    console.log('⚠️ DEBUG MODE: Returning all orders (no supplier filter)');
+  } else {
+    queryOptions = { supplier: req.user._id };
+  }
   
   // Filter by status
   if (status) {
@@ -367,12 +387,17 @@ export const getSupplierOrders = asyncHandler(async (req, res) => {
     queryOptions.createdAt = { $lte: new Date(endDate) };
   }
   
+  console.log('🔍 Query options:', queryOptions);
+  
   // Calculate pagination
   const skip = (parseInt(page) - 1) * parseInt(limit);
   
   // Prepare sort options
   const sortOptions = {};
   sortOptions[sort] = order === "asc" ? 1 : -1;
+  
+  console.log('📊 Sort options:', sortOptions);
+  console.log('📄 Pagination - skip:', skip, 'limit:', parseInt(limit));
   
   // Get orders with pagination
   const orders = await Order.find(queryOptions)
@@ -382,8 +407,13 @@ export const getSupplierOrders = asyncHandler(async (req, res) => {
     .skip(skip)
     .limit(parseInt(limit));
   
+  console.log('📦 Found orders:', orders.length);
+  console.log('📦 Orders:', orders);
+  
   // Get total count
   const totalOrders = await Order.countDocuments(queryOptions);
+  
+  console.log('📊 Total orders count:', totalOrders);
   
   return res.status(200).json(
     new ApiResponse(
@@ -406,42 +436,45 @@ export const getSupplierOrders = asyncHandler(async (req, res) => {
 export const updateOrderStatus = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { status, note } = req.body;
-  
+
   if (!status) {
     throw new ApiError(400, "Status is required");
   }
-  
+
   const order = await Order.findById(id);
-  
+
   if (!order) {
     throw new ApiError(404, "Order not found");
   }
-  
-  // Find the items belonging to this supplier
-  const supplierItemIndex = order.items.findIndex(item => 
-    item.supplier.toString() === req.user._id.toString()
-  );
-  
-  if (supplierItemIndex === -1) {
+
+  // Ensure the supplier owns this order
+  if (order.supplier.toString() !== req.user._id.toString()) {
     throw new ApiError(403, "You don't have permission to update this order");
   }
-  
-  // Update the status of the supplier's items
-  order.items[supplierItemIndex].status = status;
-  
+
+  // Update the main order status
+  order.status = status;
+
+  // Add a note to the status history
+  const historyEntry = {
+    status: status,
+    updatedAt: new Date(),
+    updatedBy: req.user._id,
+    updatedByModel: "Supplier",
+  };
+
   if (note) {
-    order.items[supplierItemIndex].notes = [
-      ...order.items[supplierItemIndex].notes || [],
-      {
-        content: note,
-        createdBy: req.user._id,
-        createdAt: new Date()
-      }
-    ];
+    historyEntry.note = note;
   }
-  
+
+  // Avoid duplicating the last status history entry
+  const lastStatus = order.statusHistory.length > 0 ? order.statusHistory[order.statusHistory.length - 1] : null;
+  if (!lastStatus || lastStatus.status !== status) {
+    order.statusHistory.push(historyEntry);
+  }
+
   await order.save();
-  
+
   return res.status(200).json(
     new ApiResponse(
       200,
@@ -574,175 +607,6 @@ export const getSupplierDashboardStats = asyncHandler(async (req, res) => {
   );
 });
 
-// Get supplier profile
-// export const getSupplierProfile = asyncHandler(async (req, res) => {
-//   const supplier = await Supplier.findById(req.user._id).select("-password -passwordResetToken -passwordResetExpires");
-  
-//   if (!supplier) {
-//     throw new ApiError(404, "Supplier not found");
-//   }
-  
-//   return res.status(200).json(
-//     new ApiResponse(
-//       200,
-//       { supplier },
-//       "Supplier profile fetched successfully"
-//     )
-//   );
-// });
-
-// Update supplier profile
-// export const updateSupplierProfile = asyncHandler(async (req, res) => {
-//   const { 
-//     businessName, 
-//     ownerName, 
-//     phone, 
-//     businessType,
-//     description,
-//     gstNumber
-//   } = req.body;
-  
-//   const updateFields = {};
-  
-//   if (businessName) updateFields.businessName = businessName;
-//   if (ownerName) updateFields.ownerName = ownerName;
-//   if (phone) updateFields.phone = phone;
-//   if (businessType) updateFields.businessType = businessType;
-//   if (description) updateFields.description = description;
-//   if (gstNumber) updateFields.gstNumber = gstNumber;
-  
-//   // Handle logo upload if file is provided
-//   if (req.files?.logo) {
-//     const supplier = await Supplier.findById(req.user._id);
-    
-//     // Delete old logo if exists
-//     if (supplier.logo?.publicId) {
-//       await deleteFromCloudinary(supplier.logo.publicId);
-//     }
-    
-//     // Upload new logo
-//     const uploadResult = await uploadToCloudinary(req.files.logo[0].path, "suppliers/logos");
-    
-//     if (!uploadResult) {
-//       throw new ApiError(500, "Error uploading logo");
-//     }
-    
-//     updateFields.logo = {
-//       url: uploadResult.secure_url,
-//       publicId: uploadResult.public_id
-//     };
-//   }
-  
-//   const updatedSupplier = await Supplier.findByIdAndUpdate(
-//     req.user._id,
-//     { $set: updateFields },
-//     { new: true }
-//   ).select("-password -passwordResetToken -passwordResetExpires");
-  
-//   if (!updatedSupplier) {
-//     throw new ApiError(404, "Supplier not found");
-//   }
-  
-//   return res.status(200).json(
-//     new ApiResponse(
-//       200,
-//       { supplier: updatedSupplier },
-//       "Supplier profile updated successfully"
-//     )
-//   );
-// });
-
-// Update logo
-// export const updateLogo = asyncHandler(async (req, res) => {
-//   if (!req.file) {
-//     throw new ApiError(400, "Logo image is required");
-//   }
-  
-//   const supplier = await Supplier.findById(req.user._id);
-  
-//   if (!supplier) {
-//     throw new ApiError(404, "Supplier not found");
-//   }
-  
-//   // Delete old logo if exists
-//   if (supplier.logo?.publicId) {
-//     await deleteFromCloudinary(supplier.logo.publicId);
-//   }
-  
-//   // Upload new logo
-//   const uploadResult = await uploadToCloudinary(req.file.path, "suppliers/logos");
-  
-//   if (!uploadResult) {
-//     throw new ApiError(500, "Error uploading logo");
-//   }
-  
-//   // Update supplier logo
-//   supplier.logo = {
-//     url: uploadResult.url,
-//     publicId: uploadResult.public_id
-//   };
-  
-//   await supplier.save();
-  
-//   const updatedSupplier = await Supplier.findById(req.user._id).select("-password -passwordResetToken -passwordResetExpires");
-  
-//   return res.status(200).json(
-//     new ApiResponse(
-//       200,
-//       { supplier: updatedSupplier },
-//       "Logo updated successfully"
-//     )
-//   );
-// });
-
-// Update address
-// export const updateAddress = asyncHandler(async (req, res) => {
-//   const { 
-//     street, 
-//     city, 
-//     state, 
-//     postalCode, 
-//     country, 
-//     landmark,
-//     coordinates 
-//   } = req.body;
-  
-//   if (!street || !city || !state || !postalCode || !country) {
-//     throw new ApiError(400, "All address fields are required");
-//   }
-  
-//   const supplier = await Supplier.findById(req.user._id);
-  
-//   if (!supplier) {
-//     throw new ApiError(404, "Supplier not found");
-//   }
-  
-//   // Update address
-//   supplier.address = {
-//     street,
-//     city,
-//     state,
-//     postalCode,
-//     country,
-//     landmark: landmark || "",
-//     coordinates: coordinates || {}
-//   };
-  
-//   await supplier.save();
-  
-//   const updatedSupplier = await Supplier.findById(req.user._id).select("-password -passwordResetToken -passwordResetExpires");
-  
-//   return res.status(200).json(
-//     new ApiResponse(
-//       200,
-//       { supplier: updatedSupplier },
-//       "Address updated successfully"
-//     )
-//   );
-// });
-
-
-
 // Update supplier address
 export const updateSupplierAddress = asyncHandler(async (req, res) => {
   const { street, city, state, postalCode, country } = req.body;
@@ -778,492 +642,12 @@ export const updateSupplierAddress = asyncHandler(async (req, res) => {
   );
 });
 
-// Update bank details
-// export const updateBankDetails = asyncHandler(async (req, res) => {
-//   const { accountName, accountNumber, bankName, ifscCode, branchName } = req.body;
-  
-//   // Validate required fields
-//   if (!accountName || !accountNumber || !bankName || !ifscCode) {
-//     throw new ApiError(400, "Account name, number, bank name, and IFSC code are required");
-//   }
-  
-//   const supplier = await Supplier.findById(req.user._id);
-  
-//   if (!supplier) {
-//     throw new ApiError(404, "Supplier not found");
-//   }
-  
-//   // Update bank details
-//   supplier.bankDetails = {
-//     accountName,
-//     accountNumber,
-//     bankName,
-//     ifscCode,
-//     branchName: branchName || ""
-//   };
-  
-//   await supplier.save();
-  
-//   return res.status(200).json(
-//     new ApiResponse(
-//       200,
-//       { bankDetails: supplier.bankDetails },
-//       "Bank details updated successfully"
-//     )
-//   );
-// });
-
-// Upload verification document
-// export const uploadVerificationDocument = asyncHandler(async (req, res) => {
-//   const { documentType } = req.body;
-  
-//   if (!documentType || !req.file) {
-//     throw new ApiError(400, "Document type and file are required");
-//   }
-  
-//   const supplier = await Supplier.findById(req.user._id);
-  
-//   if (!supplier) {
-//     throw new ApiError(404, "Supplier not found");
-//   }
-  
-//   // Upload document
-//   const uploadResult = await uploadToCloudinary(req.file.path, "suppliers/documents");
-  
-//   if (!uploadResult) {
-//     throw new ApiError(500, "Error uploading document");
-//   }
-  
-//   // Check if document of this type already exists
-//   const existingDocIndex = supplier.documents.findIndex(doc => doc.type === documentType);
-  
-//   if (existingDocIndex !== -1) {
-//     // Delete old document from cloudinary
-//     await deleteFromCloudinary(supplier.documents[existingDocIndex].publicId);
-    
-//     // Update existing document
-//     supplier.documents[existingDocIndex] = {
-//       type: documentType,
-//       url: uploadResult.secure_url,
-//       publicId: uploadResult.public_id,
-//       uploadedAt: new Date(),
-//       isVerified: false
-//     };
-//   } else {
-//     // Add new document
-//     supplier.documents.push({
-//       type: documentType,
-//       url: uploadResult.secure_url,
-//       publicId: uploadResult.public_id,
-//       uploadedAt: new Date(),
-//       isVerified: false
-//     });
-//   }
-  
-//   await supplier.save();
-  
-//   return res.status(200).json(
-//     new ApiResponse(
-//       200,
-//       { documents: supplier.documents },
-//       "Document uploaded successfully"
-//     )
-//   );
-// });
-
-// Get supplier products
-// export const getSupplierProducts = asyncHandler(async (req, res) => {
-//   const { page = 1, limit = 10, category, search } = req.query;
-  
-//   const options = {
-//     page: parseInt(page),
-//     limit: parseInt(limit),
-//     sort: { createdAt: -1 }
-//   };
-  
-//   const query = { supplier: req.user._id };
-  
-//   // Add category filter if provided
-//   if (category) {
-//     query.category = category;
-//   }
-  
-//   // Add search filter if provided
-//   if (search) {
-//     query.$or = [
-//       { name: { $regex: search, $options: 'i' } },
-//       { description: { $regex: search, $options: 'i' } }
-//     ];
-//   }
-  
-//   const products = await Product.find(query)
-//     .skip((options.page - 1) * options.limit)
-//     .limit(options.limit)
-//     .sort(options.sort);
-  
-//   const totalProducts = await Product.countDocuments(query);
-  
-//   return res.status(200).json(
-//     new ApiResponse(
-//       200,
-//       { 
-//         products,
-//         totalProducts,
-//         currentPage: options.page,
-//         totalPages: Math.ceil(totalProducts / options.limit),
-//         hasMore: options.page < Math.ceil(totalProducts / options.limit)
-//       },
-//       "Products fetched successfully"
-//     )
-//   );
-// });
-
-// Get supplier orders
-// export const getSupplierOrders = asyncHandler(async (req, res) => {
-//   const { page = 1, limit = 10, status } = req.query;
-  
-//   const options = {
-//     page: parseInt(page),
-//     limit: parseInt(limit),
-//     sort: { createdAt: -1 }
-//   };
-  
-//   const query = { 'items.supplier': req.user._id };
-  
-//   // Add status filter if provided
-//   if (status) {
-//     query['items.status'] = status;
-//   }
-  
-//   const orders = await Order.find(query)
-//     .skip((options.page - 1) * options.limit)
-//     .limit(options.limit)
-//     .sort(options.sort)
-//     .populate('customer', 'firstName lastName email phone')
-//     .populate('items.product', 'name price images');
-  
-//   // Filter items in each order to only include those belonging to this supplier
-//   const filteredOrders = orders.map(order => {
-//     const supplierItems = order.items.filter(item => 
-//       item.supplier.toString() === req.user._id.toString()
-//     );
-    
-//     return {
-//       _id: order._id,
-//       orderNumber: order.orderNumber,
-//       customer: order.customer,
-//       items: supplierItems,
-//       totalAmount: supplierItems.reduce((sum, item) => sum + (item.price * item.quantity), 0),
-//       createdAt: order.createdAt,
-//       updatedAt: order.updatedAt
-//     };
-//   });
-  
-//   const totalOrders = await Order.countDocuments(query);
-  
-//   return res.status(200).json(
-//     new ApiResponse(
-//       200,
-//       { 
-//         orders: filteredOrders,
-//         totalOrders,
-//         currentPage: options.page,
-//         totalPages: Math.ceil(totalOrders / options.limit),
-//         hasMore: options.page < Math.ceil(totalOrders / options.limit)
-//       },
-//       "Orders fetched successfully"
-//     )
-//   );
-// });
-
-// Update order status
-// export const updateOrderStatus = asyncHandler(async (req, res) => {
-//   const { id } = req.params;
-//   const { status, note } = req.body;
-  
-//   if (!status) {
-//     throw new ApiError(400, "Status is required");
-//   }
-  
-//   const order = await Order.findById(id);
-  
-//   if (!order) {
-//     throw new ApiError(404, "Order not found");
-//   }
-  
-//   // Find the items belonging to this supplier
-//   const supplierItemIndex = order.items.findIndex(item => 
-//     item.supplier.toString() === req.user._id.toString()
-//   );
-  
-//   if (supplierItemIndex === -1) {
-//     throw new ApiError(403, "You don't have permission to update this order");
-//   }
-  
-//   // Update the status of the supplier's items
-//   order.items[supplierItemIndex].status = status;
-  
-//   if (note) {
-//     order.items[supplierItemIndex].notes = [
-//       ...order.items[supplierItemIndex].notes || [],
-//       {
-//         content: note,
-//         createdBy: req.user._id,
-//         createdAt: new Date()
-//       }
-//     ];
-//   }
-  
-//   await order.save();
-  
-//   return res.status(200).json(
-//     new ApiResponse(
-//       200,
-//       { order },
-//       "Order status updated successfully"
-//     )
-//   );
-// });
-
-// Get supplier dashboard stats
-// export const getSupplierDashboardStats = asyncHandler(async (req, res) => {
-//   // Get total products
-//   const totalProducts = await Product.countDocuments({ supplier: req.user._id });
-  
-//   // Get total orders
-//   const totalOrders = await Order.countDocuments({ 'items.supplier': req.user._id });
-  
-//   // Get pending orders
-//   const pendingOrders = await Order.countDocuments({ 
-//     'items.supplier': req.user._id,
-//     'items.status': 'pending'
-//   });
-  
-//   // Get revenue stats
-//   const orders = await Order.find({ 
-//     'items.supplier': req.user._id,
-//     'items.status': 'delivered'
-//   });
-  
-//   let totalRevenue = 0;
-  
-//   orders.forEach(order => {
-//     const supplierItems = order.items.filter(item => 
-//       item.supplier.toString() === req.user._id.toString() && item.status === 'delivered'
-//     );
-    
-//     totalRevenue += supplierItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-//   });
-  
-//   // Get recent orders
-//   const recentOrders = await Order.find({ 'items.supplier': req.user._id })
-//     .sort({ createdAt: -1 })
-//     .limit(5)
-//     .populate('customer', 'firstName lastName')
-//     .populate('items.product', 'name price images');
-  
-//   // Filter items in each order to only include those belonging to this supplier
-//   const filteredRecentOrders = recentOrders.map(order => {
-//     const supplierItems = order.items.filter(item => 
-//       item.supplier.toString() === req.user._id.toString()
-//     );
-    
-//     return {
-//       _id: order._id,
-//       orderNumber: order.orderNumber,
-//       customer: order.customer,
-//       items: supplierItems,
-//       totalAmount: supplierItems.reduce((sum, item) => sum + (item.price * item.quantity), 0),
-//       status: supplierItems[0]?.status || 'pending',
-//       createdAt: order.createdAt
-//     };
-//   });
-  
-//   return res.status(200).json(
-//     new ApiResponse(
-//       200,
-//       { 
-//         stats: {
-//           totalProducts,
-//           totalOrders,
-//           pendingOrders,
-//           totalRevenue
-//         },
-//         recentOrders: filteredRecentOrders
-//       },
-//       "Dashboard stats fetched successfully"
-//     )
-//   );
-// });
-
-// Update order status
-// export const updateOrderStatus = asyncHandler(async (req, res) => {
-//   const { id } = req.params;
-//   const { status, note } = req.body;
-  
-//   if (!status) {
-//     throw new ApiError(400, "Status is required");
-//   }
-  
-//   const order = await Order.findById(id);
-  
-//   if (!order) {
-//     throw new ApiError(404, "Order not found");
-//   }
-  
-//   // Find the items belonging to this supplier
-//   const supplierItemIndex = order.items.findIndex(item => 
-//     item.supplier.toString() === req.user._id.toString()
-//   );
-  
-//   if (supplierItemIndex === -1) {
-//     throw new ApiError(403, "You don't have permission to update this order");
-//   }
-  
-//   // Update the status of the supplier's items
-//   order.items[supplierItemIndex].status = status;
-  
-//   if (note) {
-//     order.items[supplierItemIndex].notes = [
-//       ...order.items[supplierItemIndex].notes || [],
-//       {
-//         content: note,
-//         createdBy: req.user._id,
-//         createdAt: new Date()
-//       }
-//     ];
-//   }
-  
-//   await order.save();
-  
-//   return res.status(200).json(
-//     new ApiResponse(
-//       200,
-//       { order },
-//       "Order status updated successfully"
-//     )
-//   );
-// });
-
-// Get supplier dashboard stats
-// export const getSupplierDashboardStats = asyncHandler(async (req, res) => {
-//   const supplierId = req.user._id;
-  
-//   // Get total products
-//   const totalProducts = await Product.countDocuments({ supplierId });
-  
-//   // Get active products
-//   const activeProducts = await Product.countDocuments({ 
-//     supplierId, 
-//     isActive: true 
-//   });
-  
-//   // Get total orders
-//   const totalOrders = await Order.countDocuments({ supplier: supplierId });
-  
-//   // Get orders by status
-//   const pendingOrders = await Order.countDocuments({ 
-//     supplier: supplierId, 
-//     status: "pending" 
-//   });
-  
-//   const processingOrders = await Order.countDocuments({ 
-//     supplier: supplierId, 
-//     status: "processing" 
-//   });
-  
-//   const deliveredOrders = await Order.countDocuments({ 
-//     supplier: supplierId, 
-//     status: "delivered" 
-//   });
-  
-//   // Get recent orders
-//   const recentOrders = await Order.find({ supplier: supplierId })
-//     .populate("customer", "firstName lastName")
-//     .populate("items.product", "name")
-//     .sort({ createdAt: -1 })
-//     .limit(5);
-  
-//   // Get revenue stats
-//   const today = new Date();
-//   const startOfToday = new Date(today.setHours(0, 0, 0, 0));
-//   const endOfToday = new Date(today.setHours(23, 59, 59, 999));
-  
-//   const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-//   const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0, 23, 59, 59, 999);
-  
-//   // Today's revenue
-//   const todayRevenue = await Order.aggregate([
-//     { 
-//       $match: { 
-//         supplier: supplierId,
-//         status: { $in: ["delivered", "processing", "out_for_delivery"] },
-//         createdAt: { $gte: startOfToday, $lte: endOfToday }
-//       } 
-//     },
-//     { 
-//       $group: { 
-//         _id: null, 
-//         total: { $sum: "$totalAmount" } 
-//       } 
-//     }
-//   ]);
-  
-//   // Monthly revenue
-//   const monthlyRevenue = await Order.aggregate([
-//     { 
-//       $match: { 
-//         supplier: supplierId,
-//         status: { $in: ["delivered", "processing", "out_for_delivery"] },
-//         createdAt: { $gte: startOfMonth, $lte: endOfMonth }
-//       } 
-//     },
-//     { 
-//       $group: { 
-//         _id: null, 
-//         total: { $sum: "$totalAmount" } 
-//       } 
-//     }
-//   ]);
-  
-//   // Total revenue
-//   const totalRevenue = await Order.aggregate([
-//     { 
-//       $match: { 
-//         supplier: supplierId,
-//         status: { $in: ["delivered", "processing", "out_for_delivery"] }
-//       } 
-//     },
-//     { 
-//       $group: { 
-//         _id: null, 
-//         total: { $sum: "$totalAmount" } 
-//       } 
-//     }
-//   ]);
-  
-//   return res.status(200).json(
-//     new ApiResponse(
-//       200,
-//       { 
-//         products: {
-//           total: totalProducts,
-//           active: activeProducts
-//         },
-//         orders: {
-//           total: totalOrders,
-//           pending: pendingOrders,
-//           processing: processingOrders,
-//           delivered: deliveredOrders
-//         },
-//         revenue: {
-//           today: todayRevenue.length > 0 ? todayRevenue[0].total : 0,
-//           monthly: monthlyRevenue.length > 0 ? monthlyRevenue[0].total : 0,
-//           total: totalRevenue.length > 0 ? totalRevenue[0].total : 0
-//         },
-//         recentOrders
-//       },
-//       "Supplier dashboard stats fetched successfully"
-//     )
-//   );
-// });
+// Get a single supplier order by ID
+export const getSupplierOrderById = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const order = await Order.findOne({ _id: id, supplier: req.user._id })
+    .populate("customer", "firstName lastName email")
+    .populate("items.product", "name images");
+  if (!order) throw new ApiError(404, "Order not found");
+  return res.status(200).json(new ApiResponse(200, { order }, "Order fetched successfully"));
+});
