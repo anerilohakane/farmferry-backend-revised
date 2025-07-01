@@ -383,8 +383,8 @@ export const updateDeliveryStatus = asyncHandler(async (req, res) => {
       req.user._id,
       {
         $inc: {
-          "metrics.deliveriesCompleted": 1,
-          "metrics.totalEarnings": order.deliveryCharge || 0
+          "completedDeliveries": 1,
+          "totalEarnings": order.deliveryCharge || 0
         }
       }
     );
@@ -406,7 +406,7 @@ export const updateDeliveryStatus = asyncHandler(async (req, res) => {
       req.user._id,
       {
         $inc: {
-          "metrics.deliveriesFailed": 1
+          "failedDeliveries": 1
         }
       }
     );
@@ -484,9 +484,9 @@ export const getEarnings = asyncHandler(async (req, res) => {
           amount
         })),
         allTimeMetrics: {
-          deliveriesCompleted: deliveryAssociate.metrics.deliveriesCompleted,
-          deliveriesFailed: deliveryAssociate.metrics.deliveriesFailed,
-          totalEarnings: deliveryAssociate.metrics.totalEarnings
+          deliveriesCompleted: deliveryAssociate.completedDeliveries,
+          deliveriesFailed: deliveryAssociate.failedDeliveries,
+          totalEarnings: deliveryAssociate.totalEarnings
         }
       },
       "Earnings fetched successfully"

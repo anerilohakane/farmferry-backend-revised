@@ -553,6 +553,31 @@ export const getMyOrders = asyncHandler(async (req, res) => {
   );
 });
 
+// Get order status counts (supplier only)
+export const getOrderStatusCounts = asyncHandler(async (req, res) => {
+  const supplierId = req.user._id;
+  // Aggregate counts by status for this supplier
+  const counts = await Order.aggregate([
+    { $match: { supplier: supplierId } },
+    { $group: { _id: "$status", count: { $sum: 1 } } }
+  ]);
+  // Format counts
+  const statusCounts = {
+    all: 0,
+    pending: 0,
+    processing: 0,
+    out_for_delivery: 0,
+    delivered: 0,
+  };
+  counts.forEach(item => {
+    if (statusCounts.hasOwnProperty(item._id)) {
+      statusCounts[item._id] = item.count;
+      statusCounts.all += item.count;
+    }
+  });
+  return res.status(200).json(new ApiResponse(200, statusCounts, "Order status counts fetched successfully"));
+});
+
 export default {
   createOrder,
   getAllOrders,
@@ -560,5 +585,6 @@ export default {
   updateOrderStatus,
   assignDeliveryAssociate,
   updateDeliveryStatus,
-  getMyOrders
+  getMyOrders,
+  getOrderStatusCounts
 };
