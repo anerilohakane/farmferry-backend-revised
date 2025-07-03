@@ -555,3 +555,14 @@ export const requestPayout = asyncHandler(async (req, res) => {
     new ApiResponse(201, { payoutRequest }, 'Payout request submitted successfully')
   );
 });
+
+// Feedback and proof upload stubs
+export const submitOrderFeedback = asyncHandler(async (req, res) => {
+  // TODO: Save feedback to order or separate collection
+  return res.status(200).json(new ApiResponse(200, {}, 'Feedback submitted.'));
+});
+
+export const uploadOrderProof = asyncHandler(async (req, res) => {
+  // TODO: Save proof image to order or separate collection
+  return res.status(200).json(new ApiResponse(200, {}, 'Proof uploaded.'));
+});

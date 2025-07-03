@@ -6,5 +6,6 @@ const router = Router();
 
 router.use(verifyJWT);
 router.get('/', getNotifications);
+router.post('/read', (req, res) => res.json({ success: true, message: 'Notifications marked as read.' }));
 
 export default router; 

@@ -670,3 +670,61 @@ export const getDeliveryAssociateMe = asyncHandler(async (req, res) => {
     )
   );
 });
+
+// Send Phone Verification OTP for Delivery Associate
+export const sendDeliveryAssociatePhoneVerification = asyncHandler(async (req, res) => {
+  const { phone } = req.body;
+
+  if (!phone) {
+    throw new ApiError(400, "Phone number is required");
+  }
+
+  const deliveryAssociate = await DeliveryAssociate.findOne({ phone });
+  if (!deliveryAssociate) {
+    throw new ApiError(404, "Delivery associate with this phone number not found");
+  }
+
+  const otp = deliveryAssociate.generatePhoneVerificationToken();
+  await deliveryAssociate.save({ validateBeforeSave: false });
+
+  try {
+    await sendSMS(
+      deliveryAssociate.phone,
+      `Your FarmFerry verification code is: ${otp}`
+    );
+    return res.status(200).json(new ApiResponse(200, {}, "Verification OTP sent successfully"));
+  } catch (error) {
+    console.error("Error sending SMS:", error);
+    // Clear OTP fields if SMS fails
+    deliveryAssociate.phoneVerificationToken = undefined;
+    deliveryAssociate.phoneVerificationTokenExpires = undefined;
+    await deliveryAssociate.save({ validateBeforeSave: false });
+    throw new ApiError(500, "Failed to send OTP. Please try again later.");
+  }
+});
+
+// Verify Phone OTP
+export const verifyPhoneOTP = asyncHandler(async (req, res) => {
+  const { phone, otp } = req.body;
+
+  if (!phone || !otp) {
+    throw new ApiError(400, "Phone number and OTP are required");
+  }
+
+  const deliveryAssociate = await DeliveryAssociate.findOne({
+    phone,
+    phoneVerificationToken: otp,
+    phoneVerificationExpires: { $gt: Date.now() },
+  });
+
+  if (!deliveryAssociate) {
+    throw new ApiError(400, "Invalid OTP or OTP has expired");
+  }
+
+  deliveryAssociate.isPhoneVerified = true;
+  deliveryAssociate.phoneVerificationToken = undefined;
+  deliveryAssociate.phoneVerificationExpires = undefined;
+  await deliveryAssociate.save({ validateBeforeSave: false });
+
+  return res.status(200).json(new ApiResponse(200, {}, "Phone number verified successfully"));
+});

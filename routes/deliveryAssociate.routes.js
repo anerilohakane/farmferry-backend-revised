@@ -54,4 +54,17 @@ router.get("/earnings", getEarnings);
 // Payout route
 router.post("/payout", requestPayout);
 
+// Support routes
+router.get("/support/faqs", (req, res) => res.json({ faqs: [
+  { question: 'How do I start a new delivery?', answer: 'Go to Dashboard and tap Start New Delivery.' },
+  { question: 'Where can I view my order history?', answer: 'Navigate to the Orders tab to see your order history.' },
+  { question: 'How do I contact support?', answer: 'Use the Contact Support button in the Support screen.' }
+]}));
+router.post("/support/contact", (req, res) => res.json({ success: true, message: 'Support request submitted.' }));
+router.post("/support/report", (req, res) => res.json({ success: true, message: 'Issue reported.' }));
+
+// Feedback & proof upload
+router.post("/orders/:id/feedback", (req, res) => res.json({ success: true, message: 'Feedback submitted.' }));
+router.post("/orders/:id/proof", (req, res) => res.json({ success: true, message: 'Proof uploaded.' }));
+
 export default router;
