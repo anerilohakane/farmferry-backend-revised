@@ -527,3 +527,31 @@ export const getNearbyDeliveryAssociates = asyncHandler(async (req, res) => {
     )
   );
 });
+
+// Request payout
+export const requestPayout = asyncHandler(async (req, res) => {
+  const { amount } = req.body;
+  if (!amount || amount <= 0) {
+    throw new ApiError(400, 'Invalid payout amount');
+  }
+  const deliveryAssociate = await DeliveryAssociate.findById(req.user._id);
+  if (!deliveryAssociate) {
+    throw new ApiError(404, 'Delivery associate not found');
+  }
+  if (deliveryAssociate.totalEarnings < amount) {
+    throw new ApiError(400, 'Insufficient earnings for payout');
+  }
+  // Deduct amount from total earnings
+  deliveryAssociate.totalEarnings -= amount;
+  // Add payout request
+  const payoutRequest = {
+    amount,
+    status: 'pending',
+    requestedAt: new Date(),
+  };
+  deliveryAssociate.payoutRequests.push(payoutRequest);
+  await deliveryAssociate.save();
+  return res.status(201).json(
+    new ApiResponse(201, { payoutRequest }, 'Payout request submitted successfully')
+  );
+});

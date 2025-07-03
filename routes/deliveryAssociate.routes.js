@@ -9,7 +9,8 @@ import {
   getOrderDetails,
   updateDeliveryStatus,
   getEarnings,
-  getNearbyDeliveryAssociates
+  getNearbyDeliveryAssociates,
+  requestPayout
 } from "../controllers/deliveryAssociate.controller.js";
 import { verifyJWT, authorizeRoles } from "../middlewares/auth.middleware.js";
 import { upload } from "../middlewares/multer.middleware.js";
@@ -49,5 +50,8 @@ router.put("/orders/:id/status", updateDeliveryStatus);
 
 // Earnings routes
 router.get("/earnings", getEarnings);
+
+// Payout route
+router.post("/payout", requestPayout);
 
 export default router;
