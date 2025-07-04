@@ -4,7 +4,7 @@ import {
   loginCustomer,
   logout,
   refreshAccessToken,
-  changeCurrentPassword,
+  changePassword,
   getCurrentUser,
   updateAccountDetails,
   updateUserAvatar,
@@ -18,7 +18,9 @@ import {
   resetPassword,
   sendPhoneVerification,
   verifyPhoneOTP,
-  sendDeliveryAssociatePhoneVerification
+  sendDeliveryAssociatePhoneVerification,
+  loginDeliveryAssociate,
+  getDeliveryAssociateMe
 } from "../controllers/auth.controller.js";
 import { upload } from "../middlewares/multer.middleware.js";
 import { verifyJWT } from "../middlewares/auth.middleware.js";
@@ -39,10 +41,11 @@ router.post("/send-delivery-associate-otp", sendDeliveryAssociatePhoneVerificati
 
 
 // Secured routes (require authentication)
+router.post("/login/delivery-associate", loginDeliveryAssociate);
 router.use(verifyJWT);
 
 router.post("/logout", logout);
-router.post("/change-password", changeCurrentPassword);
+router.post("/change-password", changePassword);
 router.get("/current-user", getCurrentUser);
 router.patch("/update-account", updateAccountDetails);
 router.patch(
@@ -63,5 +66,7 @@ router.post("/register/admin", registerAdmin);
 // Channel routes
 router.get("/c/:username", getUserChannelProfile);
 router.get("/history", getWatchHistory);
+
+router.get("/me/delivery-associate", getDeliveryAssociateMe);
 
 export default router;

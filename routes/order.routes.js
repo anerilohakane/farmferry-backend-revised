@@ -22,6 +22,9 @@ router.post("/", authorizeRoles("customer"), createOrder);
 // Common routes (accessible by all authenticated users with appropriate roles)
 router.get("/:id", getOrderById);
 
+// Delivery associate routes
+router.get("/", authorizeRoles("deliveryAssociate"), getAllOrders);
+
 // Admin routes
 router.get("/", authorizeRoles("admin"), getAllOrders);
 

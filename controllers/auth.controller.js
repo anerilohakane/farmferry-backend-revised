@@ -728,3 +728,93 @@ export const verifyPhoneOTP = asyncHandler(async (req, res) => {
 
   return res.status(200).json(new ApiResponse(200, {}, "Phone number verified successfully"));
 });
+
+export const getCurrentUser = asyncHandler(async (req, res) => {
+  if (!req.user || !req.user._id) {
+    throw new ApiError(401, "User not authenticated");
+  }
+
+  let user;
+  let userType;
+
+  // Try to find user in each collection
+  user = await Customer.findById(req.user._id).select("-password -passwordResetToken -passwordResetExpires");
+  if (user) userType = "customer";
+  if (!user) {
+    user = await Supplier.findById(req.user._id).select("-password -passwordResetToken -passwordResetExpires");
+    if (user) userType = "supplier";
+  }
+  if (!user) {
+    user = await Admin.findById(req.user._id).select("-password -passwordResetToken -passwordResetExpires");
+    if (user) userType = "admin";
+  }
+  if (!user) {
+    user = await DeliveryAssociate.findById(req.user._id).select("-password -passwordResetToken -passwordResetExpires");
+    if (user) userType = "deliveryAssociate";
+  }
+
+  if (!user) {
+    throw new ApiError(404, "User not found");
+  }
+
+  return res.status(200).json(
+    new ApiResponse(200, { user, userType }, "Current user fetched successfully")
+  );
+});
+
+export const updateAccountDetails = asyncHandler(async (req, res) => {
+  return res.status(200).json(new ApiResponse(200, {}, "updateAccountDetails placeholder"));
+});
+
+export const updateUserAvatar = asyncHandler(async (req, res) => {
+  return res.status(200).json(new ApiResponse(200, {}, "updateUserAvatar placeholder"));
+});
+
+export const updateUserCoverImage = asyncHandler(async (req, res) => {
+  return res.status(200).json(new ApiResponse(200, {}, "updateUserCoverImage placeholder"));
+});
+
+export const getUserChannelProfile = asyncHandler(async (req, res) => {
+  return res.status(200).json(new ApiResponse(200, {}, "getUserChannelProfile placeholder"));
+});
+
+export const getWatchHistory = asyncHandler(async (req, res) => {
+  return res.status(200).json(new ApiResponse(200, {}, "getWatchHistory placeholder"));
+});
+
+export const login = asyncHandler(async (req, res) => {
+  const { email, password } = req.body;
+  // Validate required fields
+  if (!email || !password) {
+    throw new ApiError(400, "Email and password are required");
+  }
+  // Find supplier
+  const supplier = await Supplier.findOne({ email: email.toLowerCase() });
+  if (!supplier) {
+    throw new ApiError(404, "Supplier not found");
+  }
+  // Verify password
+  const isPasswordValid = await supplier.isPasswordCorrect(password);
+  if (!isPasswordValid) {
+    throw new ApiError(401, "Invalid credentials");
+  }
+  // Update last login
+  supplier.lastLogin = new Date();
+  await supplier.save();
+  // Get supplier without sensitive fields
+  const loggedInSupplier = await Supplier.findById(supplier._id).select("-password -passwordResetToken -passwordResetExpires");
+  // Generate tokens
+  const { accessToken, refreshToken } = await generateTokensAndSetCookies(supplier, res);
+  // Send response
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      {
+        supplier: loggedInSupplier,
+        accessToken,
+        refreshToken
+      },
+      "Supplier logged in successfully"
+    )
+  );
+});
