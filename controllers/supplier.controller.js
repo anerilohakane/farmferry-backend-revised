@@ -651,3 +651,56 @@ export const getSupplierOrderById = asyncHandler(async (req, res) => {
   if (!order) throw new ApiError(404, "Order not found");
   return res.status(200).json(new ApiResponse(200, { order }, "Order fetched successfully"));
 });
+
+// GET /suppliers/verification-status
+export const getVerificationStatus = asyncHandler(async (req, res) => {
+  // Fetch supplier from DB
+  const supplier = await Supplier.findById(req.user._id);
+
+  if (!supplier) {
+    throw new ApiError(404, "Supplier not found");
+  }
+
+  // Example: required document types
+  const requiredDocs = ['Aadhar Card', 'PAN Card', 'Bank Statement'];
+
+  // Build documents array dynamically
+  const documents = requiredDocs.map(type => {
+    const doc = supplier.documents?.find(d => d.type === type);
+    return {
+      type,
+      status: doc
+        ? doc.isVerified
+          ? 'approved'
+          : doc.rejectionReason
+            ? 'rejected'
+            : 'pending'
+        : 'not_uploaded',
+      url: doc?.url || null,
+      rejectionReason: doc?.rejectionReason || null
+    };
+  });
+
+  // Determine overall verification status
+  let verificationStatus = 'pending';
+  if (documents.every(doc => doc.status === 'approved')) {
+    verificationStatus = 'verified';
+  } else if (documents.some(doc => doc.status === 'rejected')) {
+    verificationStatus = 'rejected';
+  }
+
+  // Build steps dynamically
+  const steps = [
+    { label: 'Upload documents', completed: documents.every(doc => doc.status !== 'not_uploaded') },
+    { label: 'Under review', completed: documents.every(doc => doc.status === 'approved' || doc.status === 'rejected') },
+    { label: 'Verification complete', completed: verificationStatus === 'verified' }
+  ];
+
+  return res.status(200).json(
+    new ApiResponse(200, {
+      verificationStatus,
+      documents,
+      steps
+    }, 'Supplier verification status fetched successfully')
+  );
+});
