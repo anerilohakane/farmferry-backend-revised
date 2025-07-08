@@ -536,7 +536,7 @@ export const getSupplierDashboardStats = asyncHandler(async (req, res) => {
     { 
       $match: { 
         supplier: supplierId,
-        status: { $in: ["delivered", "processing", "out_for_delivery"] },
+        status: "delivered",
         createdAt: { $gte: startOfToday, $lte: endOfToday }
       } 
     },
@@ -553,7 +553,7 @@ export const getSupplierDashboardStats = asyncHandler(async (req, res) => {
     { 
       $match: { 
         supplier: supplierId,
-        status: { $in: ["delivered", "processing", "out_for_delivery"] },
+        status: "delivered",
         createdAt: { $gte: startOfMonth, $lte: endOfMonth }
       } 
     },
@@ -570,7 +570,7 @@ export const getSupplierDashboardStats = asyncHandler(async (req, res) => {
     { 
       $match: { 
         supplier: supplierId,
-        status: { $in: ["delivered", "processing", "out_for_delivery"] }
+        status: "delivered"
       } 
     },
     { 
