@@ -34,13 +34,15 @@ export const getSupplierProfile = asyncHandler(async (req, res) => {
 
 // Update supplier profile
 export const updateSupplierProfile = asyncHandler(async (req, res) => {
+  console.log('updateSupplierProfile req.body:', req.body); // Debug log
   const { 
     businessName, 
     ownerName, 
     phone, 
     businessType,
     description,
-    gstNumber
+    gstNumber,
+    panNumber
   } = req.body;
   
   const updateFields = {};
@@ -51,6 +53,7 @@ export const updateSupplierProfile = asyncHandler(async (req, res) => {
   if (businessType) updateFields.businessType = businessType;
   if (description) updateFields.description = description;
   if (gstNumber) updateFields.gstNumber = gstNumber;
+  if (panNumber) updateFields.panNumber = panNumber;
   
   // Handle logo upload if file is provided
   if (req.files?.logo) {
@@ -138,6 +141,7 @@ export const updateLogo = asyncHandler(async (req, res) => {
 
 // Update address
 export const updateAddress = asyncHandler(async (req, res) => {
+  console.log('updateAddress req.body:', req.body); // Debug log
   const { 
     street, 
     city, 
@@ -184,6 +188,7 @@ export const updateAddress = asyncHandler(async (req, res) => {
 
 // Update bank details
 export const updateBankDetails = asyncHandler(async (req, res) => {
+  console.log('updateBankDetails req.body:', req.body); // Debug log
   const { accountName, accountNumber, bankName, ifscCode, branchName } = req.body;
   
   // Validate required fields
@@ -199,7 +204,7 @@ export const updateBankDetails = asyncHandler(async (req, res) => {
   
   // Update bank details
   supplier.bankDetails = {
-    accountName,
+    accountHolderName: accountName, // <-- Fix here
     accountNumber,
     bankName,
     ifscCode,
@@ -219,9 +224,17 @@ export const updateBankDetails = asyncHandler(async (req, res) => {
 
 // Upload verification document
 export const uploadVerificationDocument = asyncHandler(async (req, res) => {
+  console.log('📤 Upload verification document called');
+  console.log('📤 Request body:', req.body);
+  console.log('📤 Request file:', req.file);
+  console.log('📤 Request files:', req.files);
+  
   const { documentType } = req.body;
   
   if (!documentType || !req.file) {
+    console.log('❌ Missing documentType or file');
+    console.log('❌ documentType:', documentType);
+    console.log('❌ req.file:', req.file);
     throw new ApiError(400, "Document type and file are required");
   }
   
@@ -232,9 +245,12 @@ export const uploadVerificationDocument = asyncHandler(async (req, res) => {
   }
   
   // Upload document
+  console.log('📤 Uploading to Cloudinary, file path:', req.file.path);
   const uploadResult = await uploadToCloudinary(req.file.path, "suppliers/documents");
+  console.log('📤 Cloudinary upload result:', uploadResult);
   
   if (!uploadResult) {
+    console.log('❌ Cloudinary upload failed');
     throw new ApiError(500, "Error uploading document");
   }
   
@@ -536,7 +552,7 @@ export const getSupplierDashboardStats = asyncHandler(async (req, res) => {
     { 
       $match: { 
         supplier: supplierId,
-        status: { $in: ["delivered", "processing", "out_for_delivery"] },
+        status: "delivered",
         createdAt: { $gte: startOfToday, $lte: endOfToday }
       } 
     },
@@ -553,7 +569,7 @@ export const getSupplierDashboardStats = asyncHandler(async (req, res) => {
     { 
       $match: { 
         supplier: supplierId,
-        status: { $in: ["delivered", "processing", "out_for_delivery"] },
+        status: "delivered",
         createdAt: { $gte: startOfMonth, $lte: endOfMonth }
       } 
     },
@@ -570,7 +586,7 @@ export const getSupplierDashboardStats = asyncHandler(async (req, res) => {
     { 
       $match: { 
         supplier: supplierId,
-        status: { $in: ["delivered", "processing", "out_for_delivery"] }
+        status: "delivered"
       } 
     },
     { 
@@ -650,4 +666,69 @@ export const getSupplierOrderById = asyncHandler(async (req, res) => {
     .populate("items.product", "name images");
   if (!order) throw new ApiError(404, "Order not found");
   return res.status(200).json(new ApiResponse(200, { order }, "Order fetched successfully"));
+});
+
+// GET /suppliers/verification-status
+export const getVerificationStatus = asyncHandler(async (req, res) => {
+  // Fetch supplier from DB
+  const supplier = await Supplier.findById(req.user._id);
+
+  if (!supplier) {
+    throw new ApiError(404, "Supplier not found");
+  }
+
+  // Example: required document types
+  const requiredDocs = ['Aadhar Card', 'PAN Card', 'Bank Statement'];
+
+  // Build documents array dynamically
+  const documents = requiredDocs.map(type => {
+    const doc = supplier.documents?.find(d => d.type === type);
+    return {
+      type,
+      status: doc
+        ? doc.isVerified
+          ? 'approved'
+          : doc.rejectionReason
+            ? 'rejected'
+            : 'pending'
+        : 'not_uploaded',
+      url: doc?.url || null,
+      rejectionReason: doc?.rejectionReason || null
+    };
+  });
+
+  // Determine overall verification status based on supplier status first
+  let verificationStatus = 'pending';
+  
+  // Check supplier's overall status first (this is the primary verification status)
+  if (supplier.status === 'approved') {
+    verificationStatus = 'verified';
+  } else if (supplier.status === 'rejected') {
+    verificationStatus = 'rejected';
+  } else {
+    // If supplier status is pending, check document status as fallback
+    if (documents.every(doc => doc.status === 'approved')) {
+      verificationStatus = 'verified';
+    } else if (documents.some(doc => doc.status === 'rejected')) {
+      verificationStatus = 'rejected';
+    }
+  }
+
+  // Build steps dynamically
+  const steps = [
+    { label: 'Upload documents', completed: documents.every(doc => doc.status !== 'not_uploaded') },
+    { label: 'Under review', completed: documents.every(doc => doc.status === 'approved' || doc.status === 'rejected') },
+    { label: 'Verification complete', completed: verificationStatus === 'verified' }
+  ];
+
+  return res.status(200).json(
+    new ApiResponse(200, {
+      verificationStatus,
+      documents,
+      steps,
+      supplierStatus: supplier.status, // Include supplier status for debugging
+      verifiedAt: supplier.verifiedAt,
+      verificationNotes: supplier.verificationNotes
+    }, 'Supplier verification status fetched successfully')
+  );
 });

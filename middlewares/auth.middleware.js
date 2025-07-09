@@ -78,7 +78,7 @@ export const isVerifiedSupplier = asyncHandler(async (req, res, next) => {
     return next();
   }
   
-  if (req.user.status !== "verified") {
+  if (req.user.status !== "approved") {
     throw new ApiError(403, "Your account is not verified yet. Please wait for admin approval.");
   }
   

@@ -326,9 +326,9 @@ export const updateOrderStatus = asyncHandler(async (req, res) => {
       delivered: ["returned"]
     },
     supplier: {
-      pending: ["processing", "cancelled"],
-      processing: ["out_for_delivery", "cancelled"],
-      out_for_delivery: ["delivered", "cancelled"]
+      pending: ["pending", "cancelled"],
+      processing: ["processing", "cancelled"],
+      out_for_delivery: ["out_for_delivery", "cancelled"]
     },
     admin: {
       pending: ["processing", "cancelled"],
@@ -339,7 +339,7 @@ export const updateOrderStatus = asyncHandler(async (req, res) => {
       returned: ["processing"]
     },
     deliveryAssociate: {
-      out_for_delivery: ["delivered"]
+      out_for_delivery: ["out_for_delivery"]
     }
   };
   

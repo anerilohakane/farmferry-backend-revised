@@ -305,7 +305,7 @@ export const loginSupplier = asyncHandler(async (req, res) => {
     new ApiResponse(
       200,
       {
-        supplier: loggedInSupplier,
+        user: loggedInSupplier,
         accessToken,
         refreshToken
       },
@@ -811,7 +811,7 @@ export const login = asyncHandler(async (req, res) => {
     new ApiResponse(
       200,
       {
-        supplier: loggedInSupplier,
+        user: loggedInSupplier,
         accessToken,
         refreshToken
       },

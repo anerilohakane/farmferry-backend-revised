@@ -10,7 +10,8 @@ import {
   getSupplierOrders,
   updateOrderStatus,
   getSupplierDashboardStats,
-  getSupplierOrderById
+  getSupplierOrderById,
+  getVerificationStatus
 } from "../controllers/supplier.controller.js";
 import { verifyJWT, authorizeRoles } from "../middlewares/auth.middleware.js";
 import { upload } from "../middlewares/multer.middleware.js";
@@ -38,5 +39,8 @@ router.put("/orders/:id/status", updateOrderStatus);
 
 // Dashboard stats
 router.get("/dashboard-stats", getSupplierDashboardStats);
+
+// Verification status route
+router.get("/verification-status", getVerificationStatus);
 
 export default router;
