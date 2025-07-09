@@ -236,6 +236,16 @@ export const updateSupplierStatus = asyncHandler(async (req, res) => {
     supplier.verifiedAt = new Date();
     supplier.verifiedBy = req.user._id;
     supplier.verificationNotes = verificationNotes || "Approved by admin";
+    
+    // Also mark all documents as verified if they exist
+    if (supplier.documents && supplier.documents.length > 0) {
+      supplier.documents.forEach(doc => {
+        doc.isVerified = true;
+        doc.verifiedAt = new Date();
+        doc.verifiedBy = req.user._id;
+        doc.verificationNotes = "Auto-verified with supplier approval";
+      });
+    }
   } else if (status === "rejected") {
     supplier.verificationNotes = verificationNotes || "Rejected by admin";
   }
@@ -281,13 +291,33 @@ export const verifySupplierDocument = asyncHandler(async (req, res) => {
   supplier.documents[documentIndex].verifiedAt = new Date();
   supplier.documents[documentIndex].verifiedBy = req.user._id;
   
+  // Check if all documents are verified and automatically update supplier status
+  const allDocumentsVerified = supplier.documents.every(doc => doc.isVerified === true);
+  const anyDocumentRejected = supplier.documents.some(doc => doc.isVerified === false);
+  
+  if (allDocumentsVerified && supplier.documents.length > 0) {
+    // All documents are verified, approve the supplier
+    supplier.status = "approved";
+    supplier.verifiedAt = new Date();
+    supplier.verifiedBy = req.user._id;
+    supplier.verificationNotes = "Auto-approved: All documents verified";
+  } else if (anyDocumentRejected) {
+    // At least one document is rejected, reject the supplier
+    supplier.status = "rejected";
+    supplier.verificationNotes = "Auto-rejected: One or more documents rejected";
+  }
+  
   await supplier.save();
   
   return res.status(200).json(
     new ApiResponse(
-      200,
-      { document: supplier.documents[documentIndex] },
-      `Document ${isVerified ? 'verified' : 'rejected'} successfully`
+      200, 
+      { 
+        document: supplier.documents[documentIndex],
+        supplierStatus: supplier.status,
+        autoUpdated: allDocumentsVerified || anyDocumentRejected
+      },
+      `Document ${isVerified ? 'verified' : 'rejected'} successfully${allDocumentsVerified ? ' and supplier auto-approved' : anyDocumentRejected ? ' and supplier auto-rejected' : ''}`
     )
   );
 });
