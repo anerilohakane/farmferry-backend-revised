@@ -37,12 +37,23 @@ const productSchema = new mongoose.Schema(
       enum: ["kg", "g", "liters", "ml", "pcs", "box", "dozen"], 
       default: "kg" 
     },
-    images: [
-      {
-        url: { type: String, required: true },
-        publicId: { type: String, required: true }
-      }
-    ],
+    images: {
+      type: [
+        {
+          url: { type: String, required: true },
+          publicId: { type: String, required: true },
+          isMain: { type: Boolean, default: false }
+        }
+      ],
+      validate: {
+        validator: function(value) {
+          return Array.isArray(value) && value.length > 0;
+        },
+        message: 'At least one product image is required'
+      },
+      required: [true, 'Product images are required']
+    },
+    
     isActive: { 
       type: Boolean, 
       default: true 

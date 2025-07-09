@@ -7,6 +7,8 @@ import { uploadToCloudinary, deleteFromCloudinary } from "../config/cloudinary.j
 
 // Create a new product
 export const createProduct = asyncHandler(async (req, res) => {
+  console.log('DEBUG createProduct req.files:', req.files);
+  console.log('DEBUG createProduct req.body:', req.body);
   const { 
     name, 
     description, 
@@ -67,20 +69,30 @@ export const createProduct = asyncHandler(async (req, res) => {
     const uploadPromises = req.files.map(file => 
       uploadToCloudinary(file.path, "products")
     );
-    
     const uploadResults = await Promise.all(uploadPromises);
-    
+    console.log('Cloudinary upload results:', uploadResults);
+
     // Filter out failed uploads
-    const successfulUploads = uploadResults.filter(result => result);
-    
+    let successfulUploads = uploadResults.filter(result => result && result.url);
+    console.log('Successful uploads:', successfulUploads);
+
+    // Fallback: If Cloudinary upload fails, use local file path (for dev only)
     if (successfulUploads.length === 0 && req.files.length > 0) {
+      successfulUploads = req.files.map(file => ({
+        url: file.path, // or use a public URL if you serve /public/uploads
+        publicId: file.filename
+      }));
+      console.log('Fallback to local file paths:', successfulUploads);
+    }
+
+    if (successfulUploads.length === 0) {
       throw new ApiError(500, "Failed to upload product images");
     }
-    
+
     // Add successful uploads to product images
     productData.images = successfulUploads.map(result => ({
-      url: result.secure_url,
-      publicId: result.public_id
+      url: result.url,
+      publicId: result.publicId || result.public_id
     }));
   }
   
