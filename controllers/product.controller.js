@@ -261,7 +261,7 @@ export const updateProduct = asyncHandler(async (req, res) => {
   
   // Check if user is the supplier of this product
   if (product.supplierId.toString() !== req.user._id.toString()) {
-    throw new ApiError(403, "You are not authorized to update this product");
+    throw new ApiError(403, "You are not the owner of this product and cannot update it.");
   }
   
   // Check if category exists if provided

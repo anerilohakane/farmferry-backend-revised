@@ -176,8 +176,7 @@ const orderSchema = new mongoose.Schema(
       },
       status: {
         type: String,
-        enum: ["assigned", "picked_up", "on_the_way", "delivered", "failed"],
-        default: "assigned"
+        enum: ["assigned", "picked_up", "on_the_way", "delivered", "failed"]
       }
     },
     estimatedDeliveryDate: {

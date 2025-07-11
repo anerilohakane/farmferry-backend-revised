@@ -20,7 +20,8 @@ import {
   verifyPhoneOTP,
   sendDeliveryAssociatePhoneVerification,
   loginDeliveryAssociate,
-  getDeliveryAssociateMe
+  getDeliveryAssociateMe,
+  loginSupplier
 } from "../controllers/auth.controller.js";
 import { upload } from "../middlewares/multer.middleware.js";
 import { verifyJWT } from "../middlewares/auth.middleware.js";
@@ -30,6 +31,8 @@ const router = Router();
 // Public routes (no authentication required)
 router.post("/register", registerCustomer); // Assuming customer registration
 router.post("/login", login);
+router.post("/login/customer", loginCustomer); // <-- Added as public route
+router.post("/login/supplier", loginSupplier);
 router.post("/refresh-token", refreshAccessToken);
 router.post("/forgot-password", forgotPassword);
 router.post("/reset-password/:token", resetPassword);

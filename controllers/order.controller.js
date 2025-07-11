@@ -578,6 +578,45 @@ export const getOrderStatusCounts = asyncHandler(async (req, res) => {
   return res.status(200).json(new ApiResponse(200, statusCounts, "Order status counts fetched successfully"));
 });
 
+// Get available orders for delivery associates (unassigned orders in processing state)
+export const getAvailableOrdersForDelivery = asyncHandler(async (req, res) => {
+  const orders = await Order.find({
+    status: { $in: ["pending", "processing"] },
+    $or: [
+      { "deliveryAssociate.associate": { $exists: false } },
+      { "deliveryAssociate.associate": null }
+    ]
+  })
+    .populate("customer", "firstName lastName email phone")
+    .populate("supplier", "businessName")
+    .populate("items.product", "name images");
+
+  return res.status(200).json(
+    new ApiResponse(200, { orders }, "Available orders fetched successfully")
+  );
+});
+
+// Allow delivery associate to self-assign an order
+export const selfAssignOrder = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const order = await Order.findById(id);
+  if (!order) throw new ApiError(404, "Order not found");
+  if (order.deliveryAssociate?.associate)
+    throw new ApiError(400, "Order already assigned");
+  if (!["pending", "processing"].includes(order.status))
+    throw new ApiError(400, "Order not available for assignment");
+
+  order.deliveryAssociate = {
+    associate: req.user._id,
+    assignedAt: new Date(),
+    status: "assigned"
+  };
+  await order.save();
+  return res.status(200).json(
+    new ApiResponse(200, { order }, "Order self-assigned successfully")
+  );
+});
+
 export default {
   createOrder,
   getAllOrders,
@@ -586,5 +625,7 @@ export default {
   assignDeliveryAssociate,
   updateDeliveryStatus,
   getMyOrders,
-  getOrderStatusCounts
+  getOrderStatusCounts,
+  getAvailableOrdersForDelivery,
+  selfAssignOrder
 };

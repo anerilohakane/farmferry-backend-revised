@@ -36,6 +36,8 @@ router.put(
   updateProduct
 );
 
+router.patch('/:id', upload.array('images'), updateProduct);
+
 router.delete(
   "/:id/images/:imageId",
   authorizeRoles("supplier", "admin"),

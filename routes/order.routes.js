@@ -7,7 +7,9 @@ import {
   assignDeliveryAssociate,
   updateDeliveryStatus,
   getMyOrders,
-  getOrderStatusCounts
+  getOrderStatusCounts,
+  getAvailableOrdersForDelivery, // NEW
+  selfAssignOrder // NEW
 } from "../controllers/order.controller.js";
 import { verifyJWT, authorizeRoles } from "../middlewares/auth.middleware.js";
 
@@ -19,11 +21,15 @@ router.use(verifyJWT);
 // Customer routes
 router.post("/", authorizeRoles("customer"), createOrder);
 
+// Delivery associate routes
+router.get("/available-for-delivery", authorizeRoles("deliveryAssociate"), getAvailableOrdersForDelivery);
+
 // Common routes (accessible by all authenticated users with appropriate roles)
 router.get("/:id", getOrderById);
 
 // Delivery associate routes
 router.get("/", authorizeRoles("deliveryAssociate"), getAllOrders);
+router.put("/:id/self-assign", authorizeRoles("deliveryAssociate"), selfAssignOrder);
 
 // Admin routes
 router.get("/", authorizeRoles("admin"), getAllOrders);
