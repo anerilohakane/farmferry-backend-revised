@@ -64,9 +64,12 @@ export const createCategory = asyncHandler(async (req, res) => {
 
 // Get all categories
 export const getAllCategories = asyncHandler(async (req, res) => {
-  const { parent, includeSubcategories = "false" } = req.query;
+  const { parent, includeSubcategories = "false", includeInactive = "false" } = req.query;
   
-  let query = { isActive: true };
+  let query = {};
+  if (includeInactive !== "true") {
+    query.isActive = true;
+  }
   
   // Filter by parent
   if (parent === "null" || parent === "") {
@@ -195,7 +198,7 @@ export const updateCategory = asyncHandler(async (req, res) => {
   if (name) category.name = name;
   if (description !== undefined) category.description = description;
   if (parent !== undefined) category.parent = parent || null;
-  if (isActive !== undefined) category.isActive = isActive === "true";
+  if (isActive !== undefined) category.isActive = isActive === true || isActive === "true";
   
   // Handle image upload if file is provided
   if (req.file) {
@@ -219,6 +222,7 @@ export const updateCategory = asyncHandler(async (req, res) => {
   
   // Save category
   await category.save();
+  console.log('Category updated and saved:', category);
   
   return res.status(200).json(
     new ApiResponse(

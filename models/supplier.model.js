@@ -96,7 +96,7 @@ const supplierSchema = new mongoose.Schema(
     // Verification Status
     status: { 
       type: String, 
-      enum: ["pending", "approved", "rejected"], 
+      enum: ["pending", "approved", "rejected", "active", "inactive", "blocked"], 
       default: "pending" 
     },
     verificationNotes: { 

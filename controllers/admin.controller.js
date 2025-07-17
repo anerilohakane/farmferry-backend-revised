@@ -4,6 +4,7 @@ import Supplier from "../models/supplier.model.js";
 import Product from "../models/product.model.js";
 import Order from "../models/order.model.js";
 import Category from "../models/category.model.js";
+import DeliveryAssociate from "../models/deliveryAssociate.model.js";
 import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
@@ -743,3 +744,80 @@ export const getCustomerAnalytics = asyncHandler(async (req, res) => {
     )
   );
 });
+
+// Get all delivery associates
+export const getAllDeliveryAssociates = asyncHandler(async (req, res) => {
+  const { 
+    search, 
+    status,
+    sort = "createdAt", 
+    order = "desc", 
+    page = 1, 
+    limit = 10 
+  } = req.query;
+  
+  const queryOptions = {};
+  
+  // Search by name, email, or phone
+  if (search) {
+    queryOptions.$or = [
+      { name: { $regex: search, $options: "i" } },
+      { email: { $regex: search, $options: "i" } },
+      { phone: { $regex: search, $options: "i" } }
+    ];
+  }
+  
+  // Filter by status
+  if (status) {
+    queryOptions.status = status;
+  }
+  
+  // Calculate pagination
+  const skip = (parseInt(page) - 1) * parseInt(limit);
+  
+  // Prepare sort options
+  const sortOptions = {};
+  sortOptions[sort] = order === "asc" ? 1 : -1;
+  
+  // Get delivery associates with pagination
+  const deliveryAssociates = await DeliveryAssociate.find(queryOptions)
+    .select("-password -passwordResetToken -passwordResetExpires")
+    .sort(sortOptions)
+    .skip(skip)
+    .limit(parseInt(limit));
+  
+  // Get total count
+  const totalDeliveryAssociates = await DeliveryAssociate.countDocuments(queryOptions);
+  
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      { 
+        deliveryAssociates,
+        pagination: {
+          total: totalDeliveryAssociates,
+          page: parseInt(page),
+          limit: parseInt(limit),
+          pages: Math.ceil(totalDeliveryAssociates / parseInt(limit))
+        }
+      },
+      "Delivery associates fetched successfully"
+    )
+  );
+});
+
+export default {
+  getAdminProfile,
+  updateAdminProfile,
+  getAllCustomers,
+  getCustomerById,
+  getAllSuppliers,
+  getSupplierById,
+  updateSupplierStatus,
+  verifySupplierDocument,
+  getAllDeliveryAssociates,
+  getDashboardStats,
+  getRevenueAnalytics,
+  getProductAnalytics,
+  getCustomerAnalytics
+};

@@ -8,6 +8,7 @@ import {
   getSupplierById,
   updateSupplierStatus,
   verifySupplierDocument,
+  getAllDeliveryAssociates,
   getDashboardStats,
   getRevenueAnalytics,
   getProductAnalytics,
@@ -33,6 +34,9 @@ router.get("/suppliers", getAllSuppliers);
 router.get("/suppliers/:id", getSupplierById);
 router.put("/suppliers/:id/status", updateSupplierStatus);
 router.put("/suppliers/:supplierId/documents/:documentId/verify", verifySupplierDocument);
+
+// Delivery associate management
+router.get("/delivery-associates", getAllDeliveryAssociates);
 
 // Analytics and dashboard
 router.get("/dashboard-stats", getDashboardStats);

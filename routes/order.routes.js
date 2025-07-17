@@ -21,6 +21,9 @@ router.use(verifyJWT);
 // Customer routes
 router.post("/", authorizeRoles("customer"), createOrder);
 
+// Admin routes (must come before other GET routes)
+router.get("/", authorizeRoles("admin"), getAllOrders);
+
 // Delivery associate routes
 router.get("/available-for-delivery", authorizeRoles("deliveryAssociate"), getAvailableOrdersForDelivery);
 
@@ -28,11 +31,7 @@ router.get("/available-for-delivery", authorizeRoles("deliveryAssociate"), getAv
 router.get("/:id", getOrderById);
 
 // Delivery associate routes
-router.get("/", authorizeRoles("deliveryAssociate"), getAllOrders);
 router.put("/:id/self-assign", authorizeRoles("deliveryAssociate"), selfAssignOrder);
-
-// Admin routes
-router.get("/", authorizeRoles("admin"), getAllOrders);
 
 // Supplier routes
 router.get("/supplier/me", authorizeRoles("supplier"), getMyOrders);

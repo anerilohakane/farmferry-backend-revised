@@ -35,7 +35,7 @@ const __dirname = dirname(__filename);
 app.use(cors({
   origin: true, // Allow all origins for development
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 

@@ -21,7 +21,8 @@ import {
   sendDeliveryAssociatePhoneVerification,
   loginDeliveryAssociate,
   getDeliveryAssociateMe,
-  loginSupplier
+  loginSupplier,
+  loginAdmin
 } from "../controllers/auth.controller.js";
 import { upload } from "../middlewares/multer.middleware.js";
 import { verifyJWT } from "../middlewares/auth.middleware.js";
@@ -31,18 +32,17 @@ const router = Router();
 // Public routes (no authentication required)
 router.post("/register", registerCustomer); // Assuming customer registration
 router.post("/login", login);
-router.post("/login/customer", loginCustomer); // <-- Added as public route
+router.post("/login/admin", loginAdmin); // <-- Admin login
+router.post("/login/customer", loginCustomer);
 router.post("/login/supplier", loginSupplier);
 router.post("/refresh-token", refreshAccessToken);
 router.post("/forgot-password", forgotPassword);
 router.post("/reset-password/:token", resetPassword);
-
 // OTP routes
 router.post("/send-phone-verification", sendPhoneVerification);
 router.post("/verify-phone-otp", verifyPhoneOTP);
 router.post("/send-delivery-associate-otp", sendDeliveryAssociatePhoneVerification);
-
-
+router.post("/register/admin", registerAdmin); // <-- Move this here to make it public
 // Secured routes (require authentication)
 router.post("/login/delivery-associate", loginDeliveryAssociate);
 router.use(verifyJWT);
@@ -64,7 +64,6 @@ router.patch(
 
 // Supplier/Admin specific routes might go here if needed
 router.post("/register/supplier", registerSupplier);
-router.post("/register/admin", registerAdmin);
 
 // Channel routes
 router.get("/c/:username", getUserChannelProfile);
