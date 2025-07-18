@@ -5,6 +5,7 @@ import { fileURLToPath } from "url";
 import { dirname, join } from "path";
 import errorHandler from "./middlewares/errorHandler.js";
 import dotenv from "dotenv";
+import methodOverride from 'method-override';
 // Load environment variables before anything else
 dotenv.config();
 
@@ -43,7 +44,13 @@ app.use(express.json({ limit: "16kb" }));
 app.use(express.urlencoded({ extended: true, limit: "16kb" }));
 app.use(cookieParser());
 app.use(express.static(join(__dirname, "public")));
+app.use(methodOverride('_method'));
 
+// Log incoming requests for debugging
+app.use((req, res, next) => {
+  console.log('Incoming:', req.method, req.originalUrl);
+  next();
+});
 // Health check route
 app.get("/api/health", (req, res) => {
   res.status(200).json({

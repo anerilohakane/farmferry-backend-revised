@@ -204,6 +204,16 @@ const orderSchema = new mongoose.Schema(
     },
     returnReason: {
       type: String
+    },
+    // QR/OTP Delivery Verification
+    qrCode: {
+      type: String // base64 or URL
+    },
+    otp: {
+      type: String // hashed OTP
+    },
+    otpExpiresAt: {
+      type: Date
     }
   },
   {
