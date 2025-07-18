@@ -29,7 +29,7 @@ router.post(
   createProduct
 );
 
-router.put(
+router.post(
   "/:id",
   authorizeRoles("supplier", "admin"),
   upload.array("images", 5),
