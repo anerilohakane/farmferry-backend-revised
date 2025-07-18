@@ -566,3 +566,19 @@ export const uploadOrderProof = asyncHandler(async (req, res) => {
   // TODO: Save proof image to order or separate collection
   return res.status(200).json(new ApiResponse(200, {}, 'Proof uploaded.'));
 });
+
+export const getAllDeliveryAssociates = asyncHandler(async (req, res) => {
+  const associates = await DeliveryAssociate.find().select('-password -passwordResetToken -passwordResetExpires');
+  return res.status(200).json(
+    new ApiResponse(200, associates, 'All delivery associates fetched successfully')
+  );
+});
+
+export const approveDeliveryAssociate = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const associate = await DeliveryAssociate.findById(id);
+  if (!associate) throw new ApiError(404, "Delivery associate not found");
+  associate.isVerified = !associate.isVerified;
+  await associate.save();
+  return res.status(200).json(new ApiResponse(200, associate, "Approval status updated"));
+});

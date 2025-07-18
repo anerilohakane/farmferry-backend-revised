@@ -32,6 +32,7 @@ const router = Router();
 // ================== PUBLIC ROUTES (No JWT required) ==================
 router.post("/register", registerCustomer);
 router.post("/login", login);
+router.post("/login/admin", loginAdmin); // <-- Admin login
 router.post("/login/customer", loginCustomer);
 router.post("/login/supplier", loginSupplier);
 router.post("/login/admin", loginAdmin); // <-- Add this line
@@ -39,14 +40,14 @@ router.post("/login/delivery-associate", loginDeliveryAssociate); // <-- Moved t
 router.post("/refresh-token", refreshAccessToken);
 router.post("/forgot-password", forgotPassword);
 router.post("/reset-password/:token", resetPassword);
-
 // OTP routes
 router.post("/send-phone-verification", sendPhoneVerification);
 router.post("/verify-phone-otp", verifyPhoneOTP);
 router.post("/send-delivery-associate-otp", sendDeliveryAssociatePhoneVerification);
-
-// ================== SECURED ROUTES (JWT required) ==================
-router.use(verifyJWT); // Apply JWT middleware to all routes below
+router.post("/register/admin", registerAdmin); // <-- Move this here to make it public
+// Secured routes (require authentication)
+router.post("/login/delivery-associate", loginDeliveryAssociate);
+router.use(verifyJWT);
 
 router.post("/logout", logout);
 router.post("/change-password", changePassword);
@@ -57,7 +58,6 @@ router.patch("/update-cover-image", upload.single("coverImage"), updateUserCover
 
 // Supplier/Admin registration (if these should be protected)
 router.post("/register/supplier", registerSupplier);
-router.post("/register/admin", registerAdmin);
 
 // Channel routes
 router.get("/c/:username", getUserChannelProfile);

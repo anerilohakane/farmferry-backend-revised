@@ -1,5 +1,6 @@
 import { Router } from "express";
 import {
+  getAllDeliveryAssociates,
   getDeliveryAssociateProfile,
   updateDeliveryAssociateProfile,
   updateVehicleDetails,
@@ -10,12 +11,29 @@ import {
   updateDeliveryStatus,
   getEarnings,
   getNearbyDeliveryAssociates,
-  requestPayout
+  requestPayout,
+  approveDeliveryAssociate
 } from "../controllers/deliveryAssociate.controller.js";
 import { verifyJWT, authorizeRoles } from "../middlewares/auth.middleware.js";
 import { upload } from "../middlewares/multer.middleware.js";
 
 const router = Router();
+
+// Add this route at the top, before router.use(...)
+router.get(
+  "/",
+  verifyJWT,
+  authorizeRoles("admin", "deliveryAssociate"),
+  getAllDeliveryAssociates
+);
+
+// Add this route after the GET / route
+router.patch(
+  "/:id/approve",
+  verifyJWT,
+  authorizeRoles("admin"),
+  approveDeliveryAssociate
+);
 
 // Routes for finding nearby delivery associates (for admin/supplier)
 router.get(
@@ -26,7 +44,7 @@ router.get(
 );
 
 // Apply JWT verification and delivery associate role to all routes below
-router.use(verifyJWT, authorizeRoles("deliveryAssociate"));
+router.use(verifyJWT, authorizeRoles("deliveryAssociate","admin"));
 
 // Profile routes
 router.get("/profile", getDeliveryAssociateProfile);
