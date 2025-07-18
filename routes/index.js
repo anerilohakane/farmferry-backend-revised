@@ -10,6 +10,7 @@ import reviewRoutes from "./review.routes.js";
 import adminRoutes from "./admin.routes.js";
 import deliveryAssociateRoutes from "./deliveryAssociate.routes.js";
 import notificationRoutes from "./notification.routes.js";
+import advancedDeliveryRoutes from "./advancedDelivery.routes.js";
 
 const router = Router();
 
@@ -25,5 +26,6 @@ router.use("/reviews", reviewRoutes);
 router.use("/admin", adminRoutes);
 router.use("/delivery-associates", deliveryAssociateRoutes);
 router.use("/notifications", notificationRoutes);
+router.use("/advanced-delivery", advancedDeliveryRoutes);
 
 export default router;
