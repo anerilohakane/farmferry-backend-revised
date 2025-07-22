@@ -252,11 +252,9 @@ export const updateProduct = asyncHandler(async (req, res) => {
     isTrending
   } = req.body;
   
-  // Find product
   const product = await Product.findById(id);
-  
   if (!product) {
-    throw new ApiError(404, "Product not found");
+    return res.status(404).json({ status: 'error', message: 'Product not found' });
   }
   
   // Check if user is the supplier of this product
