@@ -81,7 +81,7 @@ async function seed() {
     price: 100,
     stockQuantity: 50,
     unit: 'kg',
-    images: [{ url: 'https://via.placeholder.com/150', publicId: 'test', isMain: true }],
+    images: [{ url: '', publicId: 'test', isMain: true }],
     isActive: true
   });
 

@@ -377,6 +377,7 @@ export const deleteProductImage = asyncHandler(async (req, res) => {
 
 // Delete product
 export const deleteProduct = asyncHandler(async (req, res) => {
+  console.log('DELETE PRODUCT: role:', req.role, 'user:', req.user && req.user._id);
   const { id } = req.params;
   
   // Find product
@@ -386,8 +387,8 @@ export const deleteProduct = asyncHandler(async (req, res) => {
     throw new ApiError(404, "Product not found");
   }
   
-  // Check if user is the supplier of this product
-  if (product.supplierId.toString() !== req.user._id.toString()) {
+  // Allow admin to delete any product, supplier can only delete their own
+  if (req.role !== 'admin' && product.supplierId.toString() !== req.user._id.toString()) {
     throw new ApiError(403, "You are not authorized to delete this product");
   }
   
