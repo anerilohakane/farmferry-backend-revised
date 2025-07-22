@@ -9,6 +9,7 @@ import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { uploadToCloudinary } from "../config/cloudinary.js";
+import cloudinary from "cloudinary";
 
 // Get admin profile
 export const getAdminProfile = asyncHandler(async (req, res) => {
@@ -96,20 +97,43 @@ export const uploadAdminAvatar = asyncHandler(async (req, res) => {
   if (!req.file) {
     throw new ApiError(400, "No file uploaded");
   }
-  // Upload to Cloudinary
-  const uploadResult = await uploadToCloudinary(req.file.path, "admin-avatars");
+
+  // Upload buffer to Cloudinary
+  const streamUpload = (buffer) => {
+    return new Promise((resolve, reject) => {
+      const stream = cloudinary.v2.uploader.upload_stream(
+        { folder: "admin-avatars" },
+        (error, result) => {
+          if (result) resolve(result);
+          else reject(error);
+        }
+      );
+      stream.end(buffer);
+    });
+  };
+
+  let uploadResult;
+  try {
+    uploadResult = await streamUpload(req.file.buffer);
+  } catch (error) {
+    throw new ApiError(500, "Error uploading avatar");
+  }
+
   if (!uploadResult || !uploadResult.secure_url) {
     throw new ApiError(500, "Error uploading avatar");
   }
+
   // Update admin profile with new avatar URL
   const updatedAdmin = await Admin.findByIdAndUpdate(
     req.user._id,
     { $set: { avatar: uploadResult.secure_url } },
     { new: true }
   ).select("-password -passwordResetToken -passwordResetExpires");
+
   if (!updatedAdmin) {
     throw new ApiError(404, "Admin not found");
   }
+
   // Add joinDate to response
   const adminObj = updatedAdmin.toObject();
   adminObj.joinDate = updatedAdmin.createdAt;
