@@ -17,10 +17,13 @@ export const getAdminProfile = asyncHandler(async (req, res) => {
     throw new ApiError(404, "Admin not found");
   }
   
+  // Add joinDate to response
+  const adminObj = admin.toObject();
+  adminObj.joinDate = admin.createdAt;
   return res.status(200).json(
     new ApiResponse(
       200,
-      { admin },
+      { admin: adminObj },
       "Admin profile fetched successfully"
     )
   );
@@ -28,11 +31,16 @@ export const getAdminProfile = asyncHandler(async (req, res) => {
 
 // Update admin profile
 export const updateAdminProfile = asyncHandler(async (req, res) => {
-  const { name } = req.body;
+  const { name, phone, location, company, avatar, notificationPreferences } = req.body;
   
   const updateFields = {};
   
   if (name) updateFields.name = name;
+  if (phone) updateFields.phone = phone;
+  if (location) updateFields.location = location;
+  if (company) updateFields.company = company;
+  if (avatar) updateFields.avatar = avatar;
+  if (notificationPreferences) updateFields.notificationPreferences = notificationPreferences;
   
   const updatedAdmin = await Admin.findByIdAndUpdate(
     req.user._id,
@@ -44,13 +52,42 @@ export const updateAdminProfile = asyncHandler(async (req, res) => {
     throw new ApiError(404, "Admin not found");
   }
   
+  // Add joinDate to response
+  const adminObj = updatedAdmin.toObject();
+  adminObj.joinDate = updatedAdmin.createdAt;
   return res.status(200).json(
     new ApiResponse(
       200,
-      { admin: updatedAdmin },
+      { admin: adminObj },
       "Admin profile updated successfully"
     )
   );
+});
+
+// Change admin password
+export const changeAdminPassword = asyncHandler(async (req, res) => {
+  const { currentPassword, newPassword, confirmPassword } = req.body;
+  if (!currentPassword || !newPassword || !confirmPassword) {
+    throw new ApiError(400, "All password fields are required");
+  }
+  if (newPassword !== confirmPassword) {
+    throw new ApiError(400, "New passwords do not match");
+  }
+  if (newPassword.length < 8) {
+    throw new ApiError(400, "Password must be at least 8 characters long");
+  }
+  // Add more password requirements as needed
+  const admin = await Admin.findById(req.user._id);
+  if (!admin) {
+    throw new ApiError(404, "Admin not found");
+  }
+  const isMatch = await admin.isPasswordCorrect(currentPassword);
+  if (!isMatch) {
+    throw new ApiError(400, "Current password is incorrect");
+  }
+  admin.password = newPassword;
+  await admin.save();
+  return res.status(200).json(new ApiResponse(200, {}, "Password updated successfully"));
 });
 
 // Get all customers
@@ -809,6 +846,7 @@ export const getAllDeliveryAssociates = asyncHandler(async (req, res) => {
 export default {
   getAdminProfile,
   updateAdminProfile,
+  changeAdminPassword,
   getAllCustomers,
   getCustomerById,
   getAllSuppliers,

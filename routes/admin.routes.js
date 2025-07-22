@@ -12,7 +12,8 @@ import {
   getDashboardStats,
   getRevenueAnalytics,
   getProductAnalytics,
-  getCustomerAnalytics
+  getCustomerAnalytics,
+  changeAdminPassword
 } from "../controllers/admin.controller.js";
 import { verifyJWT, authorizeRoles } from "../middlewares/auth.middleware.js";
 
@@ -24,6 +25,7 @@ router.use(verifyJWT, authorizeRoles("admin"));
 // Profile routes
 router.get("/profile", getAdminProfile);
 router.put("/profile", updateAdminProfile);
+router.put("/change-password", changeAdminPassword);
 
 // Customer management
 router.get("/customers", getAllCustomers);

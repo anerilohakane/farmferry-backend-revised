@@ -49,6 +49,28 @@ const adminSchema = new mongoose.Schema(
     },
     lastLogin: {
       type: Date
+    },
+    phone: {
+      type: String,
+      trim: true
+    },
+    location: {
+      type: String,
+      trim: true
+    },
+    company: {
+      type: String,
+      trim: true
+    },
+    avatar: {
+      type: String,
+      trim: true
+    },
+    notificationPreferences: {
+      orderUpdates: { type: Boolean, default: true },
+      priceAlerts: { type: Boolean, default: false },
+      newProducts: { type: Boolean, default: true },
+      marketing: { type: Boolean, default: false }
     }
   },
   { timestamps: true }
@@ -64,6 +86,19 @@ adminSchema.pre("save", async function (next) {
   } catch (error) {
     next(error);
   }
+});
+
+// Ensure notificationPreferences defaults
+adminSchema.pre("save", function(next) {
+  if (!this.notificationPreferences) {
+    this.notificationPreferences = {
+      orderUpdates: true,
+      priceAlerts: false,
+      newProducts: true,
+      marketing: false
+    };
+  }
+  next();
 });
 
 // Compare password method
@@ -112,6 +147,11 @@ adminSchema.methods.generatePasswordResetToken = function () {
   
   return resetToken;
 };
+
+// Add joinDate virtual
+adminSchema.virtual('joinDate').get(function() {
+  return this.createdAt;
+});
 
 const Admin = mongoose.model("Admin", adminSchema);
 
