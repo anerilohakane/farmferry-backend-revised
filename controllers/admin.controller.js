@@ -901,9 +901,9 @@ export const getAllDeliveryAssociates = asyncHandler(async (req, res) => {
 
 // Create a new delivery associate (Admin)
 export const createDeliveryAssociate = asyncHandler(async (req, res) => {
-  const { name, email, phone, status = 'Active', vehicleType = 'Motorcycle', address, specialization } = req.body;
-  if (!name || !email || !phone) {
-    throw new ApiError(400, 'Name, email, and phone are required');
+  const { name, email, phone, password, status = 'Active', vehicleType = 'Motorcycle', address, specialization } = req.body;
+  if (!name || !email || !phone || !password) {
+    throw new ApiError(400, 'Name, email, phone, and password are required');
   }
   // Check for duplicate email/phone
   const existing = await DeliveryAssociate.findOne({ $or: [{ email }, { phone }] });
@@ -914,6 +914,7 @@ export const createDeliveryAssociate = asyncHandler(async (req, res) => {
     name,
     email,
     phone,
+    password, // <-- Add this line
     status,
     isActive: status === 'Active',
     vehicle: { type: vehicleType },
