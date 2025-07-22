@@ -12,9 +12,7 @@ import {
   getEarnings,
   getNearbyDeliveryAssociates,
   requestPayout,
-  approveDeliveryAssociate,
-  createDeliveryAssociate,
-  updateDeliveryAssociate
+  approveDeliveryAssociate
 } from "../controllers/deliveryAssociate.controller.js";
 import { verifyJWT, authorizeRoles } from "../middlewares/auth.middleware.js";
 import { upload } from "../middlewares/multer.middleware.js";
@@ -35,22 +33,6 @@ router.patch(
   verifyJWT,
   authorizeRoles("admin"),
   approveDeliveryAssociate
-);
-
-// Create a new delivery associate (admin only)
-router.post(
-  "/",
-  verifyJWT,
-  authorizeRoles("admin"),
-  createDeliveryAssociate
-);
-
-// Update any delivery associate (admin only)
-router.put(
-  "/:id",
-  verifyJWT,
-  authorizeRoles("admin"),
-  updateDeliveryAssociate
 );
 
 // Routes for finding nearby delivery associates (for admin/supplier)

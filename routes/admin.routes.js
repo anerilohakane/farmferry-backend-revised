@@ -14,7 +14,10 @@ import {
   getProductAnalytics,
   getCustomerAnalytics,
   changeAdminPassword,
-  uploadAdminAvatar
+  uploadAdminAvatar,
+  createDeliveryAssociate,
+  updateDeliveryAssociate,
+  deleteDeliveryAssociate
 } from "../controllers/admin.controller.js";
 import { verifyJWT, authorizeRoles } from "../middlewares/auth.middleware.js";
 import { upload } from "../middlewares/multer.middleware.js";
@@ -44,6 +47,10 @@ router.put("/suppliers/:supplierId/documents/:documentId/verify", verifySupplier
 
 // Delivery associate management
 router.get("/delivery-associates", getAllDeliveryAssociates);
+// Add CRUD routes for delivery associates
+router.post("/delivery-associates", createDeliveryAssociate);
+router.put("/delivery-associates/:id", updateDeliveryAssociate);
+router.delete("/delivery-associates/:id", deleteDeliveryAssociate);
 
 // Analytics and dashboard
 router.get("/dashboard-stats", getDashboardStats);

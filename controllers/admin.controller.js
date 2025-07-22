@@ -899,6 +899,64 @@ export const getAllDeliveryAssociates = asyncHandler(async (req, res) => {
   );
 });
 
+// Create a new delivery associate (Admin)
+export const createDeliveryAssociate = asyncHandler(async (req, res) => {
+  const { name, email, phone, status = 'Active', vehicleType = 'Motorcycle', address, specialization } = req.body;
+  if (!name || !email || !phone) {
+    throw new ApiError(400, 'Name, email, and phone are required');
+  }
+  // Check for duplicate email/phone
+  const existing = await DeliveryAssociate.findOne({ $or: [{ email }, { phone }] });
+  if (existing) {
+    throw new ApiError(409, 'A delivery associate with this email or phone already exists');
+  }
+  const deliveryAssociate = await DeliveryAssociate.create({
+    name,
+    email,
+    phone,
+    status,
+    isActive: status === 'Active',
+    vehicle: { type: vehicleType },
+    address,
+    specialization,
+    isVerified: false,
+    activeAssignments: 0,
+    ordersCompleted: 0,
+    rating: 0,
+    joinedDate: new Date(),
+    lastActive: new Date(),
+  });
+  return res.status(201).json(new ApiResponse(201, { deliveryAssociate }, 'Delivery associate created successfully'));
+});
+
+// Update a delivery associate (Admin)
+export const updateDeliveryAssociate = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { name, email, phone, status, vehicleType, address, specialization } = req.body;
+  const updateFields = {};
+  if (name) updateFields.name = name;
+  if (email) updateFields.email = email;
+  if (phone) updateFields.phone = phone;
+  if (status) {
+    updateFields.status = status;
+    updateFields.isActive = status === 'Active';
+  }
+  if (vehicleType) updateFields['vehicle.type'] = vehicleType;
+  if (address) updateFields.address = address;
+  if (specialization) updateFields.specialization = specialization;
+  const updated = await DeliveryAssociate.findByIdAndUpdate(id, { $set: updateFields }, { new: true });
+  if (!updated) throw new ApiError(404, 'Delivery associate not found');
+  return res.status(200).json(new ApiResponse(200, { deliveryAssociate: updated }, 'Delivery associate updated successfully'));
+});
+
+// Delete a delivery associate (Admin)
+export const deleteDeliveryAssociate = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const deleted = await DeliveryAssociate.findByIdAndDelete(id);
+  if (!deleted) throw new ApiError(404, 'Delivery associate not found');
+  return res.status(200).json(new ApiResponse(200, {}, 'Delivery associate deleted successfully'));
+});
+
 export default {
   getAdminProfile,
   updateAdminProfile,
@@ -911,6 +969,9 @@ export default {
   updateSupplierStatus,
   verifySupplierDocument,
   getAllDeliveryAssociates,
+  createDeliveryAssociate,
+  updateDeliveryAssociate,
+  deleteDeliveryAssociate,
   getDashboardStats,
   getRevenueAnalytics,
   getProductAnalytics,
