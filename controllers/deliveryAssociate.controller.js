@@ -582,3 +582,32 @@ export const approveDeliveryAssociate = asyncHandler(async (req, res) => {
   await associate.save();
   return res.status(200).json(new ApiResponse(200, associate, "Approval status updated"));
 });
+
+// Create a new delivery associate (admin only)
+export const createDeliveryAssociate = asyncHandler(async (req, res) => {
+  const { name, email, phone, status, vehicleType, address, password } = req.body;
+  if (!name || !email || !phone || !password) {
+    throw new ApiError(400, "Name, email, phone, and password are required");
+  }
+  const existing = await DeliveryAssociate.findOne({ email });
+  if (existing) throw new ApiError(409, "Email already exists");
+  const associate = await DeliveryAssociate.create({
+    name,
+    email,
+    phone,
+    password,
+    isActive: status === "Active",
+    vehicle: { type: vehicleType },
+    address,
+  });
+  res.status(201).json(new ApiResponse(201, associate, "Delivery associate created"));
+});
+
+// Update any delivery associate (admin only)
+export const updateDeliveryAssociate = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const updateFields = req.body;
+  const associate = await DeliveryAssociate.findByIdAndUpdate(id, updateFields, { new: true }).select('-password -passwordResetToken -passwordResetExpires');
+  if (!associate) throw new ApiError(404, "Delivery associate not found");
+  res.status(200).json(new ApiResponse(200, associate, "Delivery associate updated"));
+});
