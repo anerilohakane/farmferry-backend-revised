@@ -8,6 +8,7 @@ import DeliveryAssociate from "../models/deliveryAssociate.model.js";
 import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
+import { uploadToCloudinary } from "../config/cloudinary.js";
 
 // Get admin profile
 export const getAdminProfile = asyncHandler(async (req, res) => {
@@ -88,6 +89,37 @@ export const changeAdminPassword = asyncHandler(async (req, res) => {
   admin.password = newPassword;
   await admin.save();
   return res.status(200).json(new ApiResponse(200, {}, "Password updated successfully"));
+});
+
+// Upload admin avatar
+export const uploadAdminAvatar = asyncHandler(async (req, res) => {
+  if (!req.file) {
+    throw new ApiError(400, "No file uploaded");
+  }
+  // Upload to Cloudinary
+  const uploadResult = await uploadToCloudinary(req.file.path, "admin-avatars");
+  if (!uploadResult || !uploadResult.secure_url) {
+    throw new ApiError(500, "Error uploading avatar");
+  }
+  // Update admin profile with new avatar URL
+  const updatedAdmin = await Admin.findByIdAndUpdate(
+    req.user._id,
+    { $set: { avatar: uploadResult.secure_url } },
+    { new: true }
+  ).select("-password -passwordResetToken -passwordResetExpires");
+  if (!updatedAdmin) {
+    throw new ApiError(404, "Admin not found");
+  }
+  // Add joinDate to response
+  const adminObj = updatedAdmin.toObject();
+  adminObj.joinDate = updatedAdmin.createdAt;
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      { avatar: uploadResult.secure_url, admin: adminObj },
+      "Avatar updated successfully"
+    )
+  );
 });
 
 // Get all customers
@@ -847,6 +879,7 @@ export default {
   getAdminProfile,
   updateAdminProfile,
   changeAdminPassword,
+  uploadAdminAvatar,
   getAllCustomers,
   getCustomerById,
   getAllSuppliers,

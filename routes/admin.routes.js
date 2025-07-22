@@ -13,9 +13,11 @@ import {
   getRevenueAnalytics,
   getProductAnalytics,
   getCustomerAnalytics,
-  changeAdminPassword
+  changeAdminPassword,
+  uploadAdminAvatar
 } from "../controllers/admin.controller.js";
 import { verifyJWT, authorizeRoles } from "../middlewares/auth.middleware.js";
+import { upload } from "../middlewares/multer.middleware.js";
 
 const router = Router();
 
@@ -26,6 +28,9 @@ router.use(verifyJWT, authorizeRoles("admin"));
 router.get("/profile", getAdminProfile);
 router.put("/profile", updateAdminProfile);
 router.put("/change-password", changeAdminPassword);
+
+// Avatar upload
+router.put("/avatar", upload.single("avatar"), uploadAdminAvatar);
 
 // Customer management
 router.get("/customers", getAllCustomers);
