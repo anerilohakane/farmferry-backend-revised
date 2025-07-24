@@ -38,15 +38,16 @@ export const createCategory = asyncHandler(async (req, res) => {
   
   // Handle image upload if file is provided
   if (req.file) {
-    const uploadResult = await uploadToCloudinary(req.file.path, "categories");
+    console.log('req.file:', req.file);
+    const uploadResult = await uploadToCloudinary(req.file, "categories");
     
     if (!uploadResult) {
       throw new ApiError(500, "Error uploading category image");
     }
     
     categoryData.image = {
-      url: uploadResult.secure_url,
-      publicId: uploadResult.public_id
+      url: uploadResult.url,
+      publicId: uploadResult.public_id || uploadResult.publicId
     };
   }
   
@@ -206,17 +207,17 @@ export const updateCategory = asyncHandler(async (req, res) => {
     if (category.image?.publicId) {
       await deleteFromCloudinary(category.image.publicId);
     }
-    
+
     // Upload new image
-    const uploadResult = await uploadToCloudinary(req.file.path, "categories");
-    
+    const uploadResult = await uploadToCloudinary(req.file, "categories");
+
     if (!uploadResult) {
       throw new ApiError(500, "Error uploading category image");
     }
-    
+
     category.image = {
-      url: uploadResult.secure_url,
-      publicId: uploadResult.public_id
+      url: uploadResult.url,
+      publicId: uploadResult.public_id || uploadResult.publicId
     };
   }
   

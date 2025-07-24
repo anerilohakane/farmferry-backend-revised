@@ -18,19 +18,43 @@ cloudinary.config({
  * @param {string} folder - Folder name in Cloudinary
  * @returns {Promise<Object>} - Cloudinary upload response
  */
-export const uploadToCloudinary = async (filePath, folder = "farmferry") => {
+export const uploadToCloudinary = async (file, folder = "farmferry") => {
   try {
-    const result = await cloudinary.uploader.upload(filePath, {
-      folder,
-      resource_type: "auto"
-    });
-    
-    return {
-      url: result.secure_url,
-      public_id: result.public_id
-    };
+    // If file is a buffer (in-memory), use upload_stream
+    if (file && file.buffer) {
+      return await new Promise((resolve, reject) => {
+        const stream = cloudinary.uploader.upload_stream(
+          { folder, resource_type: "auto" },
+          (error, result) => {
+            if (error) {
+              console.error("Cloudinary Upload Error:", error);
+              reject(new Error("Error uploading file to Cloudinary"));
+            } else {
+              resolve({
+                url: result.secure_url,
+                public_id: result.public_id
+              });
+            }
+          }
+        );
+        stream.end(file.buffer);
+      });
+    } else if (file && file.path) {
+      // If file is on disk, use upload by path
+      const result = await cloudinary.uploader.upload(file.path, {
+        folder,
+        resource_type: "auto"
+      });
+      return {
+        url: result.secure_url,
+        public_id: result.public_id
+      };
+    } else {
+      throw new Error("No valid file data for Cloudinary upload");
+    }
   } catch (error) {
-    console.error("Cloudinary Upload Error:", error);
+    // Log the full error object for debugging
+    console.error("Cloudinary Upload Error (FULL):", error);
     throw new Error("Error uploading file to Cloudinary");
   }
 };

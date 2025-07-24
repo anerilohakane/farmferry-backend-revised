@@ -4,7 +4,6 @@ import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { uploadToCloudinary, deleteFromCloudinary } from "../config/cloudinary.js";
-import multer from "multer";
 
 // Create a new product
 export const createProduct = asyncHandler(async (req, res) => {
@@ -68,7 +67,7 @@ export const createProduct = asyncHandler(async (req, res) => {
   // Handle image uploads
   if (req.files && req.files.length > 0) {
     const uploadPromises = req.files.map(file => 
-      uploadToCloudinary(file.path, "products")
+      uploadToCloudinary(file, "products")
     );
     const uploadResults = await Promise.all(uploadPromises);
     console.log('Cloudinary upload results:', uploadResults);
@@ -300,7 +299,7 @@ export const updateProduct = asyncHandler(async (req, res) => {
   // Handle image uploads
   if (req.files && req.files.length > 0) {
     const uploadPromises = req.files.map(file => 
-      uploadToCloudinary(file.path, "products")
+      uploadToCloudinary(file, "products")
     );
     
     const uploadResults = await Promise.all(uploadPromises);
