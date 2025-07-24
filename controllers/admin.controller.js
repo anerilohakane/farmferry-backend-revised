@@ -454,6 +454,34 @@ export const updateSupplier = asyncHandler(async (req, res) => {
   );
 });
 
+// Create a new supplier (admin)
+export const createSupplier = asyncHandler(async (req, res) => {
+  const { businessName, ownerName, email, phone, status, address } = req.body;
+
+  // Generate a random password for the supplier
+  const password = Math.random().toString(36).slice(-8);
+
+  // Check if email already exists
+  const existing = await Supplier.findOne({ email });
+  if (existing) {
+    throw new ApiError(400, "Supplier with this email already exists");
+  }
+
+  const supplier = await Supplier.create({
+    businessName,
+    ownerName,
+    email,
+    phone,
+    status: status || "pending",
+    address,
+    password,
+  });
+
+  return res.status(201).json(
+    new ApiResponse(201, { supplier }, "Supplier created successfully")
+  );
+});
+
 // Get dashboard stats
 export const getDashboardStats = asyncHandler(async (req, res) => {
   // Get customer stats
@@ -1008,6 +1036,7 @@ export default {
   updateSupplierStatus,
   verifySupplierDocument,
   updateSupplier,
+  createSupplier,
   getAllDeliveryAssociates,
   createDeliveryAssociate,
   updateDeliveryAssociate,

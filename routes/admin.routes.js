@@ -18,7 +18,8 @@ import {
   createDeliveryAssociate,
   updateDeliveryAssociate,
   deleteDeliveryAssociate,
-  updateSupplier
+  updateSupplier,
+  createSupplier
 } from "../controllers/admin.controller.js";
 import { verifyJWT, authorizeRoles } from "../middlewares/auth.middleware.js";
 import { upload } from "../middlewares/multer.middleware.js";
@@ -46,6 +47,7 @@ router.get("/suppliers/:id", getSupplierById);
 router.put("/suppliers/:id/status", updateSupplierStatus);
 router.put("/suppliers/:supplierId/documents/:documentId/verify", verifySupplierDocument);
 router.put("/suppliers/:id", updateSupplier);
+router.post("/suppliers", createSupplier);
 
 // Delivery associate management
 router.get("/delivery-associates", getAllDeliveryAssociates);
