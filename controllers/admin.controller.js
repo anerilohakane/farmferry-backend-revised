@@ -416,6 +416,44 @@ export const verifySupplierDocument = asyncHandler(async (req, res) => {
   );
 });
 
+// Update supplier details by admin
+export const updateSupplier = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const allowedFields = [
+    "businessName",
+    "ownerName",
+    "email",
+    "phone",
+    "businessType",
+    "gstNumber",
+    "panNumber",
+    "address",
+    "bankDetails",
+    "status"
+  ];
+  const updateData = {};
+  for (const field of allowedFields) {
+    if (req.body[field] !== undefined) {
+      updateData[field] = req.body[field];
+    }
+  }
+  const updatedSupplier = await Supplier.findByIdAndUpdate(
+    id,
+    { $set: updateData },
+    { new: true }
+  ).select("-password -passwordResetToken -passwordResetExpires");
+  if (!updatedSupplier) {
+    throw new ApiError(404, "Supplier not found");
+  }
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      { supplier: updatedSupplier },
+      "Supplier updated successfully"
+    )
+  );
+});
+
 // Get dashboard stats
 export const getDashboardStats = asyncHandler(async (req, res) => {
   // Get customer stats
@@ -969,6 +1007,7 @@ export default {
   getSupplierById,
   updateSupplierStatus,
   verifySupplierDocument,
+  updateSupplier,
   getAllDeliveryAssociates,
   createDeliveryAssociate,
   updateDeliveryAssociate,

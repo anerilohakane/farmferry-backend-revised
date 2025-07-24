@@ -17,7 +17,8 @@ import {
   uploadAdminAvatar,
   createDeliveryAssociate,
   updateDeliveryAssociate,
-  deleteDeliveryAssociate
+  deleteDeliveryAssociate,
+  updateSupplier
 } from "../controllers/admin.controller.js";
 import { verifyJWT, authorizeRoles } from "../middlewares/auth.middleware.js";
 import { upload } from "../middlewares/multer.middleware.js";
@@ -44,6 +45,7 @@ router.get("/suppliers", getAllSuppliers);
 router.get("/suppliers/:id", getSupplierById);
 router.put("/suppliers/:id/status", updateSupplierStatus);
 router.put("/suppliers/:supplierId/documents/:documentId/verify", verifySupplierDocument);
+router.put("/suppliers/:id", updateSupplier);
 
 // Delivery associate management
 router.get("/delivery-associates", getAllDeliveryAssociates);
