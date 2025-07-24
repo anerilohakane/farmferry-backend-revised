@@ -9,7 +9,8 @@ import {
   getMyOrders,
   getOrderStatusCounts,
   getAvailableOrdersForDelivery, // NEW
-  selfAssignOrder // NEW
+  selfAssignOrder, // NEW
+  getMyCustomerOrders // NEW
 } from "../controllers/order.controller.js";
 import { verifyJWT, authorizeRoles } from "../middlewares/auth.middleware.js";
 
@@ -20,6 +21,7 @@ router.use(verifyJWT);
 
 // Customer routes
 router.post("/", authorizeRoles("customer"), createOrder);
+router.get("/my-orders", authorizeRoles("customer"), getMyCustomerOrders);
 
 // Admin routes (must come before other GET routes)
 router.get("/", authorizeRoles("admin"), getAllOrders);
