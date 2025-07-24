@@ -37,6 +37,11 @@ const addressSchema = new mongoose.Schema({
   isDefault: { 
     type: Boolean, 
     default: false 
+  },
+  phone: {
+    type: String,
+    // required: [true, "Phone number is required"],
+    trim: true
   }
 }, { _id: true });
 

@@ -117,7 +117,7 @@ export const updateProfileImage = asyncHandler(async (req, res) => {
 
 // Add address
 export const addAddress = asyncHandler(async (req, res) => {
-  const { street, city, state, postalCode, country, isDefault } = req.body;
+  const { street, city, state, postalCode, country, isDefault, phone } = req.body;
   
   // Validate required fields
   if (!street || !city || !state || !postalCode || !country) {
@@ -137,7 +137,8 @@ export const addAddress = asyncHandler(async (req, res) => {
     state,
     postalCode,
     country,
-    isDefault: isDefault || false
+    isDefault: isDefault || false,
+    phone: phone || ''
   };
   
   // If this is the first address or isDefault is true, make it the default
@@ -170,7 +171,7 @@ export const addAddress = asyncHandler(async (req, res) => {
 // Update address
 export const updateAddress = asyncHandler(async (req, res) => {
   const { addressId } = req.params;
-  const { street, city, state, postalCode, country, isDefault } = req.body;
+  const { street, city, state, postalCode, country, isDefault, phone } = req.body;
   
   const customer = await Customer.findById(req.user._id);
   
@@ -193,6 +194,7 @@ export const updateAddress = asyncHandler(async (req, res) => {
   if (state) customer.addresses[addressIndex].state = state;
   if (postalCode) customer.addresses[addressIndex].postalCode = postalCode;
   if (country) customer.addresses[addressIndex].country = country;
+  if (phone !== undefined) customer.addresses[addressIndex].phone = phone;
   
   // Handle default address
   if (isDefault) {
