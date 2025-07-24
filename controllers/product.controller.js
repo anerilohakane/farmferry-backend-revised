@@ -4,6 +4,7 @@ import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { uploadToCloudinary, deleteFromCloudinary } from "../config/cloudinary.js";
+import multer from "multer";
 
 // Create a new product
 export const createProduct = asyncHandler(async (req, res) => {
