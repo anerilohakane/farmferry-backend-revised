@@ -4,9 +4,11 @@ import Cart from "../models/cart.model.js";
 import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
+import sendSMS from "../utils/sms.js";
 import sendEmail from "../utils/email.js";
 import Supplier from "../models/supplier.model.js";
 import Admin from "../models/admin.model.js";
+import Customer from "../models/customer.model.js";
 
 // Create a new order
 export const createOrder = asyncHandler(async (req, res) => {
@@ -161,6 +163,38 @@ export const createOrder = asyncHandler(async (req, res) => {
     }
     
     orders.push(order);
+
+    // --- Notification Logic ---
+    // Fetch customer and supplier details
+    const customer = await Customer.findById(req.user._id);
+    const supplier = await Supplier.findById(supplierId);
+
+    // Send SMS to customer
+    if (customer && customer.phone) {
+      await sendSMS(
+        customer.phone,
+        `Your order ${order._id} has been placed successfully!`
+      );
+    }
+
+    // Send Email to customer
+    if (customer && customer.email) {
+      await sendEmail({
+        to: customer.email,
+        subject: "Order Confirmation",
+        html: `<p>Your order <b>${order._id}</b> has been placed successfully!</p>`
+      });
+    }
+
+    // Send Email to supplier
+    if (supplier && supplier.email) {
+      await sendEmail({
+        to: supplier.email,
+        subject: "New Order Received",
+        html: `<p>You have received a new order <b>${order._id}</b>.</p>`
+      });
+    }
+    // --- End Notification Logic ---
   }
   
   // Clear customer's cart if order was created from cart

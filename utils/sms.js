@@ -14,6 +14,8 @@ const sendSMS = async (to, body) => {
     });
   } catch (error) {
     console.error("Error sending SMS:", error);
+    // Do not throw or propagate error
+    return;
   }
 };
 
