@@ -1,10 +1,12 @@
 import Order from "../models/order.model.js";
 import Product from "../models/product.model.js";
 import Cart from "../models/cart.model.js";
-import Customer from "../models/customer.model.js";
 import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
+import sendEmail from "../utils/email.js";
+import Supplier from "../models/supplier.model.js";
+import Admin from "../models/admin.model.js";
 
 // Create a new order
 export const createOrder = asyncHandler(async (req, res) => {
@@ -368,6 +370,38 @@ export const updateOrderStatus = asyncHandler(async (req, res) => {
   }
   
   await order.save();
+
+  // Notify supplier and admin if order is returned
+  if (status === "returned") {
+    // Fetch supplier and admin
+    const supplier = await Supplier.findById(order.supplier);
+    const admin = await Admin.findOne({});
+    const customer = await Customer.findById(order.customer);
+    const reason = note || "No reason provided.";
+    // Email content
+    const subject = `Order #${order._id} Return Requested`;
+    const html = `
+      <h2>Order Return Requested</h2>
+      <p><strong>Order ID:</strong> ${order._id}</p>
+      <p><strong>Customer:</strong> ${customer?.firstName || ""} ${customer?.lastName || ""} (${customer?.email || ""})</p>
+      <p><strong>Reason:</strong> ${reason}</p>
+      <p><strong>Date:</strong> ${new Date().toLocaleString()}</p>
+    `;
+    if (supplier?.email) {
+      await sendEmail({
+        to: supplier.email,
+        subject,
+        html
+      });
+    }
+    if (admin?.email) {
+      await sendEmail({
+        to: admin.email,
+        subject,
+        html
+      });
+    }
+  }
   
   return res.status(200).json(
     new ApiResponse(
