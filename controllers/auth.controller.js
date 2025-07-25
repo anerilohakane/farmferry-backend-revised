@@ -533,7 +533,7 @@ export const sendPhoneVerification = asyncHandler(async (req, res) => {
   const { phone } = req.body;
 
   if (!phone) {
-    throw new ApiError(400, "Phone number is required");
+    // throw new ApiError(400, "Phone number is required");
   }
 
   const supplier = await Supplier.findOne({ phone });
@@ -677,7 +677,7 @@ export const sendDeliveryAssociatePhoneVerification = asyncHandler(async (req, r
   const { phone } = req.body;
 
   if (!phone) {
-    throw new ApiError(400, "Phone number is required");
+    // throw new ApiError(400, "Phone number is required");
   }
 
   const deliveryAssociate = await DeliveryAssociate.findOne({ phone });
