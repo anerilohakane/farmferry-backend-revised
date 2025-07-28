@@ -8,10 +8,24 @@ const categorySchema = new mongoose.Schema(
       trim: true,
       unique: true
     },
-    subCategory:{
-      type: String,
-      required:true
-    },
+    subCategory: [{
+      name: {
+        type: String,
+        required: true
+      },
+      description: {
+        type: String,
+        trim: true
+      },
+      image: {
+        url: { type: String },
+        publicId: { type: String }
+      },
+      isActive: {
+        type: Boolean,
+        default: true
+      }
+    }],
     description: {
       type: String,
       trim: true
@@ -49,18 +63,18 @@ categorySchema.virtual('subcategories', {
 });
 
 // Method to get full category path (for breadcrumbs)
-categorySchema.methods.getPath = async function() {
+categorySchema.methods.getPath = async function () {
   const path = [this];
-  
+
   let currentCategory = this;
   while (currentCategory.parent) {
     const parentCategory = await mongoose.model('Category').findById(currentCategory.parent);
     if (!parentCategory) break;
-    
+
     path.unshift(parentCategory);
     currentCategory = parentCategory;
   }
-  
+
   return path;
 };
 
