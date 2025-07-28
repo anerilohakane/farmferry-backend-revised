@@ -24,7 +24,7 @@ const orderItemSchema = new mongoose.Schema({
   },
   totalPrice: {
     type: Number,
-    default: function() {
+    default: function () {
       return this.quantity * this.discountedPrice;
     }
   },
@@ -52,12 +52,12 @@ const orderSchema = new mongoose.Schema(
       required: true
     },
     items: [orderItemSchema],
-    
+
     // Order financial details
     subtotal: {
       type: Number,
       required: true,
-      default: function() {
+      default: function () {
         return this.items.reduce((sum, item) => sum + item.totalPrice, 0);
       }
     },
@@ -78,11 +78,11 @@ const orderSchema = new mongoose.Schema(
     },
     totalAmount: {
       type: Number,
-      default: function() {
+      default: function () {
         return this.subtotal - this.discountAmount + this.taxes + this.deliveryCharge;
       }
     },
-    
+
     // Payment details
     paymentMethod: {
       type: String,
@@ -100,7 +100,7 @@ const orderSchema = new mongoose.Schema(
     invoiceUrl: {
       type: String
     },
-    
+
     // Order status and tracking
     status: {
       type: String,
@@ -138,7 +138,7 @@ const orderSchema = new mongoose.Schema(
       type: Boolean,
       default: false
     },
-    
+
     // Delivery details
     deliveryAddress: {
       street: {
@@ -148,6 +148,17 @@ const orderSchema = new mongoose.Schema(
       city: {
         type: String,
         required: true
+      },
+      location: {
+        type: {
+          type: String,
+          enum: ['Point'],
+          default: 'Point'
+        },
+        coordinates: {
+          type: [Number], // [longitude, latitude]
+          required: true
+        }
       },
       state: {
         type: String,
@@ -185,7 +196,7 @@ const orderSchema = new mongoose.Schema(
     deliveredAt: {
       type: Date
     },
-    
+
     // Order feedback & cancellations
     review: {
       type: mongoose.Schema.Types.ObjectId,
@@ -222,25 +233,25 @@ const orderSchema = new mongoose.Schema(
 );
 
 // Middleware to auto-calculate totals before saving
-orderSchema.pre("save", function(next) {
+orderSchema.pre("save", function (next) {
   // Calculate subtotal from items
   this.subtotal = this.items.reduce((sum, item) => sum + item.totalPrice, 0);
-  
+
   // Calculate final total
   this.totalAmount = this.subtotal - this.discountAmount + this.taxes + this.deliveryCharge;
-  
+
   // Add status to history if it's a new order or status changed
-  const lastStatus = this.statusHistory.length > 0 
-    ? this.statusHistory[this.statusHistory.length - 1].status 
+  const lastStatus = this.statusHistory.length > 0
+    ? this.statusHistory[this.statusHistory.length - 1].status
     : null;
-    
+
   if (!lastStatus || lastStatus !== this.status) {
     this.statusHistory.push({
       status: this.status,
       updatedAt: new Date()
     });
   }
-  
+
   next();
 });
 

@@ -6,146 +6,21 @@ import { asyncHandler } from "../utils/asyncHandler.js";
 import { uploadToCloudinary, deleteFromCloudinary } from "../config/cloudinary.js";
 
 // Create a new category
-// export const createCategory = asyncHandler(async (req, res) => {
-//   const { name, description, parent } = req.body;
-
-//   // Validate required fields
-//   if (!name) {
-//     throw new ApiError(400, "Category name is required");
-//   }
-
-//   // Check if category with same name already exists
-//   const existingCategory = await Category.findOne({ name: { $regex: new RegExp(`^${name}$`, "i") } });
-//   if (existingCategory) {
-//     throw new ApiError(409, "Category with this name already exists");
-//   }
-
-//   // Check if parent category exists if provided
-//   if (parent) {
-//     const parentCategory = await Category.findById(parent);
-//     if (!parentCategory) {
-//       throw new ApiError(404, "Parent category not found");
-//     }
-//   }
-
-//   // Create category object
-//   const categoryData = {
-//     name,
-//     description,
-//     parent: parent || null,
-//     createdBy: req.user._id
-//   };
-
-//   // Handle image upload if file is provided
-//   if (req.file) {
-//     console.log('req.file:', req.file);
-//     const uploadResult = await uploadToCloudinary(req.file, "categories");
-
-//     if (!uploadResult) {
-//       throw new ApiError(500, "Error uploading category image");
-//     }
-
-//     categoryData.image = {
-//       url: uploadResult.url,
-//       publicId: uploadResult.public_id || uploadResult.publicId
-//     };
-//   }
-
-//   // Create category
-//   const category = await Category.create(categoryData);
-
-//   return res.status(201).json(
-//     new ApiResponse(
-//       201,
-//       { category },
-//       "Category created successfully"
-//     )
-//   );
-// });
-
-//==========================================================================
-
-
-// export const createCategory = asyncHandler(async (req, res) => {
-//   const { name, description, parent, subCategory } = req.body;
-
-//   // Validate required fields
-//   if (!name || !subCategory) {
-//     throw new ApiError(400, "Category name and subCategory is required");
-//   }
-
-//   // Check if category with same name already exists (case-insensitive)
-//   const existingCategory = await Category.findOne({
-//     name: { $regex: new RegExp(`^${name}$`, "i") }
-//   });
-
-//   if (existingCategory) {
-//     throw new ApiError(409, "Category with this name already exists");
-//   }
-
-//   // Check if parent category exists if provided
-//   if (parent) {
-//     const parentCategory = await Category.findById(parent);
-//     if (!parentCategory) {
-//       throw new ApiError(404, "Parent category not found");
-//     }
-//   }
-
-//   // Construct category data
-//   const categoryData = {
-//     name,
-//     subCategory: subCategory || null,
-//     description,
-//     parent: parent || null,
-//     createdBy: req.user._id
-//   };
-
-//   // Handle image upload if file is provided
-//   if (req.file) {
-//     console.log('req.file:', req.file);
-//     const uploadResult = await uploadToCloudinary(req.file, "categories");
-
-//     if (!uploadResult) {
-//       throw new ApiError(500, "Error uploading category image");
-//     }
-
-//     categoryData.image = {
-//       url: uploadResult.url,
-//       publicId: uploadResult.public_id || uploadResult.publicId
-//     };
-//   }
-
-//   // Create category
-//   const category = await Category.create(categoryData);
-
-//   return res.status(201).json(
-//     new ApiResponse(
-//       201,
-//       { category },
-//       "Category created successfully"
-//     )
-//   );
-// });
-
-
 export const createCategory = asyncHandler(async (req, res) => {
-  const { name, description, parent, subCategory } = req.body;
+  const { name, description, parent } = req.body;
 
   // Validate required fields
   if (!name) {
     throw new ApiError(400, "Category name is required");
   }
 
-  // Check if category with the same name already exists (case-insensitive)
-  const existingCategory = await Category.findOne({
-    name: { $regex: new RegExp(`^${name}$`, "i") },
-  });
-
+  // Check if category with same name already exists
+  const existingCategory = await Category.findOne({ name: { $regex: new RegExp(`^${name}$`, "i") } });
   if (existingCategory) {
     throw new ApiError(409, "Category with this name already exists");
   }
 
-  // Check if parent category exists (if provided)
+  // Check if parent category exists if provided
   if (parent) {
     const parentCategory = await Category.findById(parent);
     if (!parentCategory) {
@@ -153,62 +28,124 @@ export const createCategory = asyncHandler(async (req, res) => {
     }
   }
 
+  // Create category object
   const categoryData = {
     name,
     description,
     parent: parent || null,
-    createdBy: req.user._id,
+    createdBy: req.user._id
   };
 
-  // Handle main category image
+  // Handle image upload if file is provided
   if (req.file) {
+    console.log('req.file:', req.file);
     const uploadResult = await uploadToCloudinary(req.file, "categories");
+
     if (!uploadResult) {
       throw new ApiError(500, "Error uploading category image");
     }
+
     categoryData.image = {
       url: uploadResult.url,
-      publicId: uploadResult.public_id || uploadResult.publicId,
+      publicId: uploadResult.public_id || uploadResult.publicId
     };
   }
 
-  // Handle optional subCategory array (if provided)
-  if (Array.isArray(subCategory) && subCategory.length > 0) {
-    categoryData.subCategory = [];
-
-    for (const sub of subCategory) {
-      if (!sub.name) {
-        throw new ApiError(400, "Each subcategory must have a name");
-      }
-
-      const subCat = {
-        name: sub.name,
-        description: sub.description || "",
-        isActive: sub.isActive !== undefined ? sub.isActive : true,
-      };
-
-      // Handle subcategory image if provided (assumes sub.image is a URL or file object — adapt as needed)
-      if (sub.imageFile) {
-        const uploadResult = await uploadToCloudinary(sub.imageFile, "subcategories");
-        if (uploadResult) {
-          subCat.image = {
-            url: uploadResult.url,
-            publicId: uploadResult.public_id || uploadResult.publicId,
-          };
-        }
-      }
-
-      categoryData.subCategory.push(subCat);
-    }
-  }
-
-  // Create the new category document
+  // Create category
   const category = await Category.create(categoryData);
 
   return res.status(201).json(
-    new ApiResponse(201, { category }, "Category created successfully")
+    new ApiResponse(
+      201,
+      { category },
+      "Category created successfully"
+    )
   );
 });
+
+//==========================================================================
+
+// export const createCategory = asyncHandler(async (req, res) => {
+//   const { name, description, parent, subCategory } = req.body;
+
+//   // Validate required fields
+//   if (!name) {
+//     throw new ApiError(400, "Category name is required");
+//   }
+
+//   // Check if category with the same name already exists (case-insensitive)
+//   const existingCategory = await Category.findOne({
+//     name: { $regex: new RegExp(`^${name}$`, "i") },
+//   });
+
+//   if (existingCategory) {
+//     throw new ApiError(409, "Category with this name already exists");
+//   }
+
+//   // Check if parent category exists (if provided)
+//   if (parent) {
+//     const parentCategory = await Category.findById(parent);
+//     if (!parentCategory) {
+//       throw new ApiError(404, "Parent category not found");
+//     }
+//   }
+
+//   const categoryData = {
+//     name,
+//     description,
+//     parent: parent || null,
+//     createdBy: req.user._id,
+//   };
+
+//   // Handle main category image
+//   if (req.file) {
+//     const uploadResult = await uploadToCloudinary(req.file, "categories");
+//     if (!uploadResult) {
+//       throw new ApiError(500, "Error uploading category image");
+//     }
+//     categoryData.image = {
+//       url: uploadResult.url,
+//       publicId: uploadResult.public_id || uploadResult.publicId,
+//     };
+//   }
+
+//   // Handle optional subCategory array (if provided)
+//   if (Array.isArray(subCategory) && subCategory.length > 0) {
+//     categoryData.subCategory = [];
+
+//     for (const sub of subCategory) {
+//       if (!sub.name) {
+//         throw new ApiError(400, "Each subcategory must have a name");
+//       }
+
+//       const subCat = {
+//         name: sub.name,
+//         description: sub.description || "",
+//         isActive: sub.isActive !== undefined ? sub.isActive : true,
+//       };
+
+//       // Handle subcategory image if provided (assumes sub.image is a URL or file object — adapt as needed)
+//       if (sub.imageFile) {
+//         const uploadResult = await uploadToCloudinary(sub.imageFile, "subcategories");
+//         if (uploadResult) {
+//           subCat.image = {
+//             url: uploadResult.url,
+//             publicId: uploadResult.public_id || uploadResult.publicId,
+//           };
+//         }
+//       }
+
+//       categoryData.subCategory.push(subCat);
+//     }
+//   }
+
+//   // Create the new category document
+//   const category = await Category.create(categoryData);
+
+//   return res.status(201).json(
+//     new ApiResponse(201, { category }, "Category created successfully")
+//   );
+// });
 
 //=========================================================================================
 

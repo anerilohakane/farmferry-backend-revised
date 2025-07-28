@@ -28,27 +28,9 @@ const categorySchema = new mongoose.Schema(
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Admin"
-    },
-    subCategory: [{
-      name: {
-        type: String,
-        required: true
-      },
-      description: {
-        type: String,
-        trim: true
-      },
-      image: {
-        url: { type: String },
-        publicId: { type: String }
-      },
-      isActive: {
-        type: Boolean,
-        default: true
-      }
-    }],
+    }
   },
-  
+
   {
     timestamps: true,
     toJSON: { virtuals: true },
