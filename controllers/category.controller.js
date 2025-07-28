@@ -6,20 +6,81 @@ import { asyncHandler } from "../utils/asyncHandler.js";
 import { uploadToCloudinary, deleteFromCloudinary } from "../config/cloudinary.js";
 
 // Create a new category
-export const createCategory = asyncHandler(async (req, res) => {
-  const { name, description, parent } = req.body;
+// export const createCategory = asyncHandler(async (req, res) => {
+//   const { name, description, parent } = req.body;
   
+//   // Validate required fields
+//   if (!name) {
+//     throw new ApiError(400, "Category name is required");
+//   }
+  
+//   // Check if category with same name already exists
+//   const existingCategory = await Category.findOne({ name: { $regex: new RegExp(`^${name}$`, "i") } });
+//   if (existingCategory) {
+//     throw new ApiError(409, "Category with this name already exists");
+//   }
+  
+//   // Check if parent category exists if provided
+//   if (parent) {
+//     const parentCategory = await Category.findById(parent);
+//     if (!parentCategory) {
+//       throw new ApiError(404, "Parent category not found");
+//     }
+//   }
+  
+//   // Create category object
+//   const categoryData = {
+//     name,
+//     description,
+//     parent: parent || null,
+//     createdBy: req.user._id
+//   };
+  
+//   // Handle image upload if file is provided
+//   if (req.file) {
+//     console.log('req.file:', req.file);
+//     const uploadResult = await uploadToCloudinary(req.file, "categories");
+    
+//     if (!uploadResult) {
+//       throw new ApiError(500, "Error uploading category image");
+//     }
+    
+//     categoryData.image = {
+//       url: uploadResult.url,
+//       publicId: uploadResult.public_id || uploadResult.publicId
+//     };
+//   }
+  
+//   // Create category
+//   const category = await Category.create(categoryData);
+  
+//   return res.status(201).json(
+//     new ApiResponse(
+//       201,
+//       { category },
+//       "Category created successfully"
+//     )
+//   );
+// });
+
+//==========================================================================
+export const createCategory = asyncHandler(async (req, res) => {
+  const { name, description, parent, subCategory } = req.body;
+
   // Validate required fields
   if (!name) {
     throw new ApiError(400, "Category name is required");
   }
-  
-  // Check if category with same name already exists
-  const existingCategory = await Category.findOne({ name: { $regex: new RegExp(`^${name}$`, "i") } });
+
+  // Check if category with same name already exists (case-insensitive)
+  const existingCategory = await Category.findOne({
+    name: { $regex: new RegExp(`^${name}$`, "i") }
+  });
+
   if (existingCategory) {
     throw new ApiError(409, "Category with this name already exists");
   }
-  
+
   // Check if parent category exists if provided
   if (parent) {
     const parentCategory = await Category.findById(parent);
@@ -27,33 +88,34 @@ export const createCategory = asyncHandler(async (req, res) => {
       throw new ApiError(404, "Parent category not found");
     }
   }
-  
-  // Create category object
+
+  // Construct category data
   const categoryData = {
     name,
+    subCategory: subCategory || null,
     description,
     parent: parent || null,
     createdBy: req.user._id
   };
-  
+
   // Handle image upload if file is provided
   if (req.file) {
     console.log('req.file:', req.file);
     const uploadResult = await uploadToCloudinary(req.file, "categories");
-    
+
     if (!uploadResult) {
       throw new ApiError(500, "Error uploading category image");
     }
-    
+
     categoryData.image = {
       url: uploadResult.url,
       publicId: uploadResult.public_id || uploadResult.publicId
     };
   }
-  
+
   // Create category
   const category = await Category.create(categoryData);
-  
+
   return res.status(201).json(
     new ApiResponse(
       201,
@@ -62,6 +124,8 @@ export const createCategory = asyncHandler(async (req, res) => {
     )
   );
 });
+
+//=========================================================================================
 
 // Get all categories
 export const getAllCategories = asyncHandler(async (req, res) => {
@@ -201,20 +265,20 @@ export const updateCategory = asyncHandler(async (req, res) => {
   if (parent !== undefined) category.parent = parent || null;
   if (isActive !== undefined) category.isActive = isActive === true || isActive === "true";
   
-  // Handle image upload if file is provided
-  if (req.file) {
+  // Handle image upload if file is provided (main category image)
+  const mainImageFile = req.files?.find(f => f.fieldname === 'image');
+  console.log('mainImageFile:', mainImageFile);
+  if (mainImageFile) {
     // Delete old image if exists
     if (category.image?.publicId) {
       await deleteFromCloudinary(category.image.publicId);
     }
-
     // Upload new image
-    const uploadResult = await uploadToCloudinary(req.file, "categories");
-
+    const uploadResult = await uploadToCloudinary(mainImageFile, "categories");
+    console.log('uploadResult:', uploadResult);
     if (!uploadResult) {
       throw new ApiError(500, "Error uploading category image");
     }
-
     category.image = {
       url: uploadResult.url,
       publicId: uploadResult.public_id || uploadResult.publicId

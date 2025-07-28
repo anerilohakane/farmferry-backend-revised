@@ -6,6 +6,9 @@ import { dirname, join } from "path";
 import errorHandler from "./middlewares/errorHandler.js";
 import dotenv from "dotenv";
 import methodOverride from 'method-override';
+
+import authRoutes from "./routes/auth.routes.js"; 
+
 // Load environment variables before anything else
 dotenv.config();
 
@@ -75,6 +78,7 @@ app.get("/api/health", (req, res) => {
 
 // API Routes
 app.use("/api/v1", routes);
+app.use("/api/v1", authRoutes); 
 
 // 404 Route
 app.all("*", (req, res) => {

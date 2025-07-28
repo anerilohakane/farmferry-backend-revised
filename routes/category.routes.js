@@ -17,6 +17,13 @@ router.get("/", getAllCategories);
 router.get("/tree", getCategoryTree);
 router.get("/:id", getCategoryById);
 
+// router.post(
+//   "/",
+//   //authorizeRoles("admin"),
+//   upload.single("image"),
+//   createCategory
+// );
+
 // Protected routes
 router.use(verifyJWT);
 
