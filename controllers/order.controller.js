@@ -751,6 +751,39 @@ export const getMyCustomerOrders = asyncHandler(async (req, res) => {
   );
 });
 
+
+// In backend - orders controller
+export const getAvailableOrdersNearby = asyncHandler(async (req, res) => {
+  const { longitude, latitude, maxDistance = 10000 } = req.query;
+
+  if (!longitude || !latitude) {
+    throw new ApiError(400, "Longitude and latitude are required");
+  }
+
+  const orders = await Order.find({
+    status: "PENDING",
+    isAssigned: false,
+    deliveryAddress: {
+      location: {
+        $near: {
+          $geometry: {
+            type: "Point",
+            coordinates: [parseFloat(longitude), parseFloat(latitude)]
+          },
+          $maxDistance: parseInt(maxDistance)
+        }
+      }
+    }
+  })
+  .populate("customer", "firstName lastName")
+  .select("_id createdAt customer deliveryAddress");
+
+  return res.status(200).json(
+    new ApiResponse(200, { orders }, "Nearby available orders fetched")
+  );
+});
+
+
 export default {
   createOrder,
   getAllOrders,
@@ -762,5 +795,6 @@ export default {
   getOrderStatusCounts,
   getAvailableOrdersForDelivery,
   selfAssignOrder,
-  getMyCustomerOrders
+  getMyCustomerOrders,
+  getAvailableOrdersNearby
 };
