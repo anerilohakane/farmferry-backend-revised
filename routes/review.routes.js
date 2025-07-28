@@ -8,7 +8,8 @@ import {
   markReviewAsHelpful,
   reportReview,
   toggleReviewVisibility,
-  replyToReview
+  replyToReview,
+  addCustomerReply
 } from "../controllers/review.controller.js";
 import { verifyJWT, authorizeRoles } from "../middlewares/auth.middleware.js";
 import { upload } from "../middlewares/multer.middleware.js";
@@ -64,6 +65,13 @@ router.post(
   "/:id/reply",
   authorizeRoles("supplier", "admin"),
   replyToReview
+);
+
+// Customer reply to admin/seller response
+router.post(
+  "/:id/customer-reply",
+  authorizeRoles("customer"),
+  addCustomerReply
 );
 
 export default router;

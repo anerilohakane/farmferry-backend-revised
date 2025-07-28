@@ -68,8 +68,8 @@ export const createCategory = asyncHandler(async (req, res) => {
   const { name, description, parent, subCategory } = req.body;
 
   // Validate required fields
-  if (!name) {
-    throw new ApiError(400, "Category name is required");
+  if (!name || !subCategory) {
+    throw new ApiError(400, "Category name and subCategory is required");
   }
 
   // Check if category with same name already exists (case-insensitive)

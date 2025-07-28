@@ -170,12 +170,17 @@ export const createOrder = asyncHandler(async (req, res) => {
     const supplier = await Supplier.findById(supplierId);
 
     // Send SMS to customer
-    if (customer && customer.phone) {
-      await sendSMS(
-        customer.phone,
-        `Your order ${order._id} has been placed successfully!`
-      );
-    }
+    // if (customer && customer.phone) {
+    //   // Format phone number to E.164 (prepend +91 if not present)
+    //   let to = customer.phone;
+    //   if (!to.startsWith('+')) {
+    //     to = '+91' + to;
+    //   }
+    //   await sendSMS(
+    //     to,
+    //     `Your order ${order._id} has been placed successfully!`
+    //   );
+    // }
 
     // Send Email to customer
     if (customer && customer.email) {
@@ -364,20 +369,29 @@ export const updateOrderStatus = asyncHandler(async (req, res) => {
     supplier: {
       pending: ["pending", "cancelled"],
       processing: ["processing", "cancelled"],
-      out_for_delivery: ["out_for_delivery", "cancelled"]
+      out_for_delivery: ["cancelled", "damaged"]
     },
     admin: {
       pending: ["processing", "cancelled"],
       processing: ["out_for_delivery", "cancelled"],
-      out_for_delivery: ["delivered", "cancelled"],
+      out_for_delivery: ["delivered", "cancelled", "damaged"],
       delivered: ["returned"],
       cancelled: ["pending"],
-      returned: ["processing"]
+      returned: ["processing"],
+      damaged: []
     },
     deliveryAssociate: {
       out_for_delivery: ["out_for_delivery"]
     }
   };
+
+  // Debug logging for transition check
+  console.log('--- Order Status Transition Debug ---');
+  console.log('Current order.status:', order.status);
+  console.log('Requested status:', status);
+  console.log('User role:', req.user.role);
+  console.log('Allowed transitions for this status:', validTransitions[req.user.role][order.status]);
+  console.log('-------------------------------------');
   
   const roleTransitions = validTransitions[req.user.role];
   if (!roleTransitions || !roleTransitions[order.status] || !roleTransitions[order.status].includes(status)) {
@@ -401,6 +415,11 @@ export const updateOrderStatus = asyncHandler(async (req, res) => {
   // Update delivered date if status is delivered
   if (status === "delivered") {
     order.deliveredAt = new Date();
+  }
+
+  // Notify when marked as damaged
+  if (status === "damaged") {
+    console.log(`Order ${order._id} marked as DAMAGED by ${req.user.role} (${req.user._id}) at ${new Date().toISOString()}`);
   }
   
   await order.save();

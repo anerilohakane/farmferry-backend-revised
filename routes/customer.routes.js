@@ -10,7 +10,9 @@ import {
   addToWishlist,
   removeFromWishlist,
   getWishlist,
-  getCustomerOrders
+  getCustomerOrders,
+  getCustomerReviews,
+  getPendingReviews
 } from "../controllers/customer.controller.js";
 import { verifyJWT, authorizeRoles } from "../middlewares/auth.middleware.js";
 import { upload } from "../middlewares/multer.middleware.js";
@@ -38,5 +40,9 @@ router.get("/wishlist", getWishlist);
 
 // Order routes
 router.get("/orders", getCustomerOrders);
+
+// Review routes
+router.get("/reviews", getCustomerReviews);
+router.get("/reviews/pending", getPendingReviews);
 
 export default router;
