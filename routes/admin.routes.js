@@ -19,7 +19,14 @@ import {
   updateDeliveryAssociate,
   deleteDeliveryAssociate,
   updateSupplier,
-  createSupplier
+  createSupplier,
+  getAllReviews,
+  getReviewById,
+  updateReviewStatus,
+  toggleReviewVisibility,
+  deleteReview,
+  replyToReview,
+  getReviewStats
 } from "../controllers/admin.controller.js";
 import { verifyJWT, authorizeRoles } from "../middlewares/auth.middleware.js";
 import { upload } from "../middlewares/multer.middleware.js";
@@ -61,5 +68,22 @@ router.get("/dashboard-stats", getDashboardStats);
 router.get("/analytics/revenue", getRevenueAnalytics);
 router.get("/analytics/products", getProductAnalytics);
 router.get("/analytics/customers", getCustomerAnalytics);
+
+// Review management
+router.get("/reviews", (req, res, next) => {
+  console.log("🎯 GET /admin/reviews hit");
+  next();
+}, getAllReviews);
+
+router.get("/reviews/stats", (req, res, next) => {
+  console.log("🎯 GET /admin/reviews/stats hit");
+  next();
+}, getReviewStats);
+
+router.get("/reviews/:id", getReviewById);
+router.put("/reviews/:id/status", updateReviewStatus);
+router.put("/reviews/:id/visibility", toggleReviewVisibility);
+router.delete("/reviews/:id", deleteReview);
+router.post("/reviews/:id/reply", replyToReview);
 
 export default router;

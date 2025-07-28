@@ -5,10 +5,11 @@ import Product from "../models/product.model.js";
 import Order from "../models/order.model.js";
 import Category from "../models/category.model.js";
 import DeliveryAssociate from "../models/deliveryAssociate.model.js";
+import Review from "../models/review.model.js";
 import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
-import { uploadToCloudinary } from "../config/cloudinary.js";
+import { uploadToCloudinary, deleteFromCloudinary } from "../config/cloudinary.js";
 import cloudinary from "cloudinary";
 
 // Get admin profile
@@ -1024,6 +1025,261 @@ export const deleteDeliveryAssociate = asyncHandler(async (req, res) => {
   return res.status(200).json(new ApiResponse(200, {}, 'Delivery associate deleted successfully'));
 });
 
+// Review Management Functions
+
+// Get all reviews with filtering and pagination
+export const getAllReviews = asyncHandler(async (req, res) => {
+  console.log("🔍 getAllReviews called with query:", req.query);
+  
+  const { 
+    status, 
+    rating, 
+    search, 
+    sort = "createdAt", 
+    order = "desc", 
+    page = 1, 
+    limit = 10 
+  } = req.query;
+
+  // Build query
+  const query = {};
+  
+  if (status && status !== 'all') {
+    query.status = status;
+  }
+  
+  if (rating && rating !== 'all') {
+    query.rating = parseInt(rating);
+  }
+  
+  if (search) {
+    query.$or = [
+      { title: { $regex: search, $options: 'i' } },
+      { comment: { $regex: search, $options: 'i' } }
+    ];
+  }
+
+  // Calculate pagination
+  const skip = (parseInt(page) - 1) * parseInt(limit);
+  
+  // Prepare sort options
+  const sortOptions = {};
+  sortOptions[sort] = order === "asc" ? 1 : -1;
+
+  // Get reviews with populated data
+  const reviews = await Review.find(query)
+    .populate("customer", "firstName lastName email profileImage")
+    .populate("product", "name images")
+    .populate("order", "orderNumber")
+    .sort(sortOptions)
+    .skip(skip)
+    .limit(parseInt(limit));
+
+  // Get total count
+  const totalReviews = await Review.countDocuments(query);
+
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      {
+        reviews,
+        pagination: {
+          total: totalReviews,
+          page: parseInt(page),
+          limit: parseInt(limit),
+          pages: Math.ceil(totalReviews / parseInt(limit))
+        }
+      },
+      "Reviews fetched successfully"
+    )
+  );
+});
+
+// Get review by ID
+export const getReviewById = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  
+  const review = await Review.findById(id)
+    .populate("customer", "firstName lastName email profileImage")
+    .populate("product", "name images description")
+    .populate("order", "orderNumber status")
+    .populate("reply.createdBy", "firstName lastName");
+
+  if (!review) {
+    throw new ApiError(404, "Review not found");
+  }
+
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      { review },
+      "Review fetched successfully"
+    )
+  );
+});
+
+// Update review status (approve/reject)
+export const updateReviewStatus = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { status } = req.body;
+
+  if (!status || !['approved', 'rejected', 'pending'].includes(status)) {
+    throw new ApiError(400, "Valid status is required (approved, rejected, pending)");
+  }
+
+  const review = await Review.findByIdAndUpdate(
+    id,
+    { status },
+    { new: true }
+  ).populate("customer", "firstName lastName email");
+
+  if (!review) {
+    throw new ApiError(404, "Review not found");
+  }
+
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      { review },
+      `Review ${status} successfully`
+    )
+  );
+});
+
+// Toggle review visibility
+export const toggleReviewVisibility = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { isVisible } = req.body;
+
+  if (typeof isVisible !== 'boolean') {
+    throw new ApiError(400, "isVisible must be a boolean");
+  }
+
+  const review = await Review.findByIdAndUpdate(
+    id,
+    { isVisible },
+    { new: true }
+  ).populate("customer", "firstName lastName email");
+
+  if (!review) {
+    throw new ApiError(404, "Review not found");
+  }
+
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      { review },
+      `Review ${isVisible ? 'made visible' : 'hidden'} successfully`
+    )
+  );
+});
+
+// Delete review
+export const deleteReview = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+
+  const review = await Review.findById(id);
+  if (!review) {
+    throw new ApiError(404, "Review not found");
+  }
+
+  // Delete images from cloudinary if they exist
+  if (review.images && review.images.length > 0) {
+    const deletePromises = review.images.map(image => 
+      deleteFromCloudinary(image.publicId)
+    );
+    await Promise.all(deletePromises);
+  }
+
+  await Review.findByIdAndDelete(id);
+
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      {},
+      "Review deleted successfully"
+    )
+  );
+});
+
+// Reply to review
+export const replyToReview = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { content } = req.body;
+
+  if (!content || content.trim() === '') {
+    throw new ApiError(400, "Reply content is required");
+  }
+
+  const review = await Review.findById(id).populate("product");
+  if (!review) {
+    throw new ApiError(404, "Review not found");
+  }
+
+  // Add reply
+  review.reply = {
+    content: content.trim(),
+    createdAt: new Date(),
+    createdBy: req.user._id,
+    createdByModel: "Admin"
+  };
+
+  await review.save();
+
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      { review },
+      "Reply added successfully"
+    )
+  );
+});
+
+// Get review statistics
+export const getReviewStats = asyncHandler(async (req, res) => {
+  console.log("📊 getReviewStats called");
+  
+  // Get total reviews
+  const totalReviews = await Review.countDocuments();
+  
+  // Get reviews by status
+  const pendingReviews = await Review.countDocuments({ status: 'pending' });
+  const approvedReviews = await Review.countDocuments({ status: 'approved' });
+  const rejectedReviews = await Review.countDocuments({ status: 'rejected' });
+  
+  // Get average rating
+  const avgRatingResult = await Review.aggregate([
+    { $group: { _id: null, avgRating: { $avg: "$rating" } } }
+  ]);
+  const avgRating = avgRatingResult.length > 0 ? parseFloat(avgRatingResult[0].avgRating.toFixed(1)) : 0;
+  
+  // Get rating distribution
+  const ratingDistribution = await Review.aggregate([
+    { $group: { _id: "$rating", count: { $sum: 1 } } },
+    { $sort: { _id: -1 } }
+  ]);
+  
+  const distribution = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
+  ratingDistribution.forEach(item => {
+    distribution[item._id] = item.count;
+  });
+
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      {
+        totalReviews,
+        pendingReviews,
+        approvedReviews,
+        rejectedReviews,
+        avgRating,
+        distribution
+      },
+      "Review statistics fetched successfully"
+    )
+  );
+});
+
 export default {
   getAdminProfile,
   updateAdminProfile,
@@ -1044,5 +1300,12 @@ export default {
   getDashboardStats,
   getRevenueAnalytics,
   getProductAnalytics,
-  getCustomerAnalytics
+  getCustomerAnalytics,
+  getAllReviews,
+  getReviewById,
+  updateReviewStatus,
+  toggleReviewVisibility,
+  deleteReview,
+  replyToReview,
+  getReviewStats
 };
