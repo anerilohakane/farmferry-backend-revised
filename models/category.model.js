@@ -10,7 +10,7 @@ const categorySchema = new mongoose.Schema(
     },
     subCategory:{
       type: String,
-      required:false
+      required:true
     },
     description: {
       type: String,
