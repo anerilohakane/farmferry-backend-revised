@@ -140,6 +140,7 @@ export const getProductReviews = asyncHandler(async (req, res) => {
   // Get reviews with pagination
   const reviews = await Review.find(query)
     .populate("customer", "firstName lastName profileImage")
+    .populate("customerReply.customer", "firstName lastName profileImage")
     .sort(sortOptions)
     .skip(skip)
     .limit(parseInt(limit));
@@ -465,6 +466,60 @@ export const replyToReview = asyncHandler(async (req, res) => {
       200,
       { review },
       "Reply added successfully"
+    )
+  );
+});
+
+// Customer: Reply to admin/seller response
+export const addCustomerReply = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { content } = req.body;
+  
+  if (!content) {
+    throw new ApiError(400, "Reply content is required");
+  }
+  
+  // Find review
+  const review = await Review.findById(id);
+  
+  if (!review) {
+    throw new ApiError(404, "Review not found");
+  }
+  
+  // Check if user is the author of this review
+  if (review.customer.toString() !== req.user._id.toString()) {
+    throw new ApiError(403, "You can only reply to responses on your own reviews");
+  }
+  
+  // Check if there's already a seller reply
+  if (!review.reply) {
+    throw new ApiError(400, "You can only reply to seller responses");
+  }
+  
+  // Check if customer has already replied
+  if (review.customerReply) {
+    throw new ApiError(400, "You have already replied to this response");
+  }
+  
+  // Add customer reply
+  review.customerReply = {
+    content,
+    createdAt: new Date(),
+    customer: req.user._id
+  };
+  
+  // Save review
+  await review.save();
+  
+  // Populate customer details
+  await review.populate("customer", "firstName lastName profileImage");
+  await review.populate("customerReply.customer", "firstName lastName profileImage");
+  
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      { review },
+      "Customer reply added successfully"
     )
   );
 });

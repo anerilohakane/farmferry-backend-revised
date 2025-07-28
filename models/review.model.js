@@ -63,6 +63,14 @@ const reviewSchema = new mongoose.Schema(
         type: String,
         enum: ["Supplier", "Admin"]
       }
+    },
+    customerReply: {
+      content: { type: String },
+      createdAt: { type: Date },
+      customer: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Customer"
+      }
     }
   },
   {

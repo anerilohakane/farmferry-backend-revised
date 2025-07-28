@@ -170,12 +170,17 @@ export const createOrder = asyncHandler(async (req, res) => {
     const supplier = await Supplier.findById(supplierId);
 
     // Send SMS to customer
-    if (customer && customer.phone) {
-      await sendSMS(
-        customer.phone,
-        `Your order ${order._id} has been placed successfully!`
-      );
-    }
+    // if (customer && customer.phone) {
+    //   // Format phone number to E.164 (prepend +91 if not present)
+    //   let to = customer.phone;
+    //   if (!to.startsWith('+')) {
+    //     to = '+91' + to;
+    //   }
+    //   await sendSMS(
+    //     to,
+    //     `Your order ${order._id} has been placed successfully!`
+    //   );
+    // }
 
     // Send Email to customer
     if (customer && customer.email) {

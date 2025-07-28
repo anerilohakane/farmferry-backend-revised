@@ -1,15 +1,17 @@
 import twilio from "twilio";
 
-const client = twilio(
-  process.env.TWILIO_ACCOUNT_SID,
-  process.env.TWILIO_AUTH_TOKEN
-);
+// Directly include Twilio credentials
+const accountSid = "AC945a6e4f2f39e5838587441d5550592d";
+const authToken = "2c35af9a14da67f7dfc58cd04575404f";
+const twilioPhoneNumber = "+17622043940";
+
+const client = twilio(accountSid, authToken);
 
 const sendSMS = async (to, body) => {
   try {
     await client.messages.create({
       body,
-      from: process.env.TWILIO_PHONE_NUMBER,
+      from: twilioPhoneNumber,
       to,
     });
   } catch (error) {

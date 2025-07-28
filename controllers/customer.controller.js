@@ -1,4 +1,7 @@
 import Customer from "../models/customer.model.js";
+import Review from "../models/review.model.js";
+import Order from "../models/order.model.js";
+import Product from "../models/product.model.js";
 import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
@@ -449,6 +452,107 @@ export const getCustomerOrders = asyncHandler(async (req, res) => {
         }
       },
       "Customer orders fetched successfully"
+    )
+  );
+});
+
+// Get customer reviews
+export const getCustomerReviews = asyncHandler(async (req, res) => {
+  console.log('getCustomerReviews called for user:', req.user?._id);
+  const { page = 1, limit = 10 } = req.query;
+  
+  // Calculate pagination
+  const skip = (parseInt(page) - 1) * parseInt(limit);
+  
+  // Get customer reviews with pagination
+  const reviews = await Review.find({ customer: req.user._id })
+    .populate("product", "name images categoryId supplierId")
+    .populate("product.categoryId", "name")
+    .populate("product.supplierId", "businessName")
+    .populate("customer", "firstName lastName")
+    .sort({ createdAt: -1 })
+    .skip(skip)
+    .limit(parseInt(limit));
+  
+  // Get total count
+  const totalReviews = await Review.countDocuments({ customer: req.user._id });
+  
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      { 
+        reviews,
+        pagination: {
+          total: totalReviews,
+          page: parseInt(page),
+          limit: parseInt(limit),
+          pages: Math.ceil(totalReviews / parseInt(limit))
+        }
+      },
+      "Customer reviews fetched successfully"
+    )
+  );
+});
+
+// Get pending reviews (products purchased but not reviewed)
+export const getPendingReviews = asyncHandler(async (req, res) => {
+  console.log('getPendingReviews called for user:', req.user?._id);
+  const { page = 1, limit = 10 } = req.query;
+  
+  // Calculate pagination
+  const skip = (parseInt(page) - 1) * parseInt(limit);
+  
+  // Get delivered orders for the customer
+  const deliveredOrders = await Order.find({
+    customer: req.user._id,
+    status: "delivered"
+  }).populate("items.product");
+  
+  // Extract unique product IDs from delivered orders
+  const purchasedProductIds = [...new Set(
+    deliveredOrders.flatMap(order => 
+      order.items.map(item => item.product._id.toString())
+    )
+  )];
+  
+  // Get products that the customer has already reviewed
+  const reviewedProductIds = await Review.find({ customer: req.user._id })
+    .distinct("product");
+  
+  // Convert to strings for comparison
+  const reviewedProductIdStrings = reviewedProductIds.map(id => id.toString());
+  
+  // Find products that are purchased but not reviewed
+  const pendingProductIds = purchasedProductIds.filter(
+    productId => !reviewedProductIdStrings.includes(productId)
+  );
+  
+  // Get pending products with details
+  const pendingProducts = await Product.find({
+    _id: { $in: pendingProductIds }
+  })
+    .populate("categoryId", "name")
+    .populate("supplierId", "businessName")
+    .sort({ createdAt: -1 })
+    .skip(skip)
+    .limit(parseInt(limit));
+  
+  // Get total count
+  const totalPending = pendingProducts.length;
+  
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      { 
+        pendingProducts,
+        pagination: {
+          total: totalPending,
+          page: parseInt(page),
+          limit: parseInt(limit),
+          pages: Math.ceil(totalPending / parseInt(limit))
+        }
+      },
+      "Pending reviews fetched successfully"
     )
   );
 });
