@@ -6,7 +6,7 @@ import mongoose from "mongoose";
  */
 export const connectDB = async () => {
   try {
-    const connectionString = `${process.env.MONGO_DB_URI}/${process.env.DB_NAME}`;
+    const connectionString = process.env.MONGODB_URI || `${process.env.MONGO_DB_URI}/${process.env.DB_NAME}`;
     
     const conn = await mongoose.connect(connectionString, {
       // Connection options are automatically handled in newer mongoose versions

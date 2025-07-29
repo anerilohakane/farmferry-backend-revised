@@ -17,10 +17,10 @@ if (!fs.existsSync(uploadsDir)) {
 // Configure storage
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    cb(null, uploadsDir);
+    cb(null, 'public/uploads');
   },
   filename: function (req, file, cb) {
-    const uniqueFilename = `${uuidv4()}${path.extname(file.originalname)}`;
+    const uniqueFilename = `${Date.now()}-${file.originalname}`;
     cb(null, uniqueFilename);
   }
 });
@@ -43,7 +43,7 @@ const fileFilter = (req, file, cb) => {
 
 // Initialize multer with configuration
 export const upload = multer({
-  storage: multer.memoryStorage(),
+  storage,
   fileFilter,
   limits: {
     fileSize: 10 * 1024 * 1024 // 10MB max file size
