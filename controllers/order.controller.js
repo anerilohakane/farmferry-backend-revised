@@ -9,6 +9,9 @@ import sendEmail from "../utils/email.js";
 import Supplier from "../models/supplier.model.js";
 import Admin from "../models/admin.model.js";
 import Customer from "../models/customer.model.js";
+import { generateInvoicePDF, shouldGenerateInvoice, getInvoiceUrl } from "../utils/invoiceGenerator.js";
+import fs from 'fs';
+import path from 'path';
 
 // Create a new order
 export const createOrder = asyncHandler(async (req, res) => {
@@ -429,6 +432,11 @@ export const updateOrderStatus = asyncHandler(async (req, res) => {
   
   await order.save();
 
+  // Auto-generate invoice when order is delivered or payment is completed
+  if (status === "delivered" || (order.paymentMethod !== "cash_on_delivery" && order.paymentStatus === "paid")) {
+    await autoGenerateInvoice(order);
+  }
+
   // Notify supplier and admin if order is returned
   if (status === "returned") {
     // Fetch supplier and admin
@@ -803,6 +811,137 @@ export const getAvailableOrdersNearby = asyncHandler(async (req, res) => {
 });
 
 
+// Generate invoice for an order
+export const generateOrderInvoice = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  
+  const order = await Order.findById(id)
+    .populate("customer", "firstName lastName email phone")
+    .populate("supplier", "businessName email phone")
+    .populate("items.product", "name images price discountedPrice");
+  
+  if (!order) {
+    throw new ApiError(404, "Order not found");
+  }
+  
+  // Check authorization
+  const isCustomer = req.user.role === "customer" && order.customer._id.toString() === req.user._id.toString();
+  const isSupplier = req.user.role === "supplier" && order.supplier._id.toString() === req.user._id.toString();
+  const isAdmin = req.user.role === "admin";
+  
+  if (!isCustomer && !isSupplier && !isAdmin) {
+    throw new ApiError(403, "You are not authorized to generate invoice for this order");
+  }
+  
+  // Check if invoice should be generated
+  if (!shouldGenerateInvoice(order)) {
+    throw new ApiError(400, "Invoice can only be generated for delivered orders or paid online payments");
+  }
+  
+  // Check if invoice already exists
+  if (order.invoiceUrl) {
+    return res.status(200).json(
+      new ApiResponse(
+        200,
+        { 
+          invoiceUrl: getInvoiceUrl(order),
+          message: "Invoice already exists"
+        },
+        "Invoice URL retrieved successfully"
+      )
+    );
+  }
+  
+  try {
+    // Generate invoice
+    const invoiceUrl = await generateInvoicePDF(order, order.customer, order.supplier);
+    
+    // Update order with invoice URL
+    order.invoiceUrl = invoiceUrl;
+    await order.save();
+    
+    return res.status(200).json(
+      new ApiResponse(
+        200,
+        { invoiceUrl },
+        "Invoice generated successfully"
+      )
+    );
+  } catch (error) {
+    console.error('Error generating invoice:', error);
+    throw new ApiError(500, "Failed to generate invoice");
+  }
+});
+
+// Get invoice file for an order
+export const getOrderInvoice = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  
+  const order = await Order.findById(id)
+    .populate("customer", "firstName lastName email phone")
+    .populate("supplier", "businessName email phone");
+  
+  if (!order) {
+    throw new ApiError(404, "Order not found");
+  }
+  
+  // Check authorization
+  const isCustomer = req.user.role === "customer" && order.customer._id.toString() === req.user._id.toString();
+  const isSupplier = req.user.role === "supplier" && order.supplier._id.toString() === req.user._id.toString();
+  const isAdmin = req.user.role === "admin";
+  
+  if (!isCustomer && !isSupplier && !isAdmin) {
+    throw new ApiError(403, "You are not authorized to view invoice for this order");
+  }
+  
+  if (!order.invoiceUrl) {
+    throw new ApiError(404, "Invoice not found for this order");
+  }
+  
+  try {
+    // Get the file path from the URL
+    const filePath = path.join(__dirname, '../public', order.invoiceUrl);
+    
+    // Check if file exists
+    if (!fs.existsSync(filePath)) {
+      throw new ApiError(404, "Invoice file not found");
+    }
+    
+    // Set headers for text file download
+    res.setHeader('Content-Type', 'text/plain');
+    res.setHeader('Content-Disposition', `attachment; filename="invoice-${order.orderId}.txt"`);
+    
+    // Stream the file
+    const fileStream = fs.createReadStream(filePath);
+    fileStream.pipe(res);
+  } catch (error) {
+    console.error('Error serving invoice file:', error);
+    throw new ApiError(500, "Failed to serve invoice file");
+  }
+});
+
+// Auto-generate invoice when order is delivered
+export const autoGenerateInvoice = async (order) => {
+  try {
+    if (shouldGenerateInvoice(order)) {
+      const populatedOrder = await Order.findById(order._id)
+        .populate("customer", "firstName lastName email phone")
+        .populate("supplier", "businessName email phone")
+        .populate("items.product", "name images price discountedPrice");
+      
+      if (!populatedOrder.invoiceUrl) {
+        const invoiceUrl = await generateInvoicePDF(populatedOrder, populatedOrder.customer, populatedOrder.supplier);
+        populatedOrder.invoiceUrl = invoiceUrl;
+        await populatedOrder.save();
+        
+        console.log(`Invoice generated for order ${order.orderId}: ${invoiceUrl}`);
+      }
+    }
+  } catch (error) {
+    console.error('Error auto-generating invoice:', error);
+  }
+};
+
 export default {
   createOrder,
   getAllOrders,
@@ -815,5 +954,7 @@ export default {
   getAvailableOrdersForDelivery,
   selfAssignOrder,
   getMyCustomerOrders,
-  getAvailableOrdersNearby
+  getAvailableOrdersNearby,
+  generateOrderInvoice,
+  getOrderInvoice
 };

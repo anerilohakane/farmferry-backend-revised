@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
+import crypto from "crypto";
 
 // Address Schema for multiple addresses
 const addressSchema = new mongoose.Schema({
@@ -133,9 +134,9 @@ customerSchema.methods.generateAccessToken = function () {
       email: this.email,
       role: this.role
     }, 
-    process.env.ACCESS_TOKEN_SECRET,
+    process.env.ACCESS_TOKEN_SECRET || 'fallback_access_token_secret',
     {
-      expiresIn: process.env.ACCESS_TOKEN_EXPIRY
+      expiresIn: process.env.ACCESS_TOKEN_EXPIRY || '1d'
     }
   );
 };
@@ -146,9 +147,9 @@ customerSchema.methods.generateRefreshToken = function () {
     {
       id: this._id
     }, 
-    process.env.REFRESH_TOKEN_SECRET,
+    process.env.REFRESH_TOKEN_SECRET || 'fallback_refresh_token_secret',
     {
-      expiresIn: process.env.REFRESH_TOKEN_EXPIRY
+      expiresIn: process.env.REFRESH_TOKEN_EXPIRY || '7d'
     }
   );
 };

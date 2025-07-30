@@ -445,7 +445,8 @@ export const forgotPassword = asyncHandler(async (req, res) => {
   await user.save({ validateBeforeSave: false });
   
   // Create reset URL
-  const resetURL = `${process.env.FRONTEND_URL}/reset-password/${resetToken}`;
+  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+  const resetURL = `${frontendUrl}/reset-password/${resetToken}`;
 
   try {
     await sendEmail({
