@@ -2,6 +2,7 @@ import jwt from "jsonwebtoken";
 import Customer from "../models/customer.model.js";
 import Supplier from "../models/supplier.model.js";
 import Admin from "../models/admin.model.js";
+import SuperAdmin from "../models/superadmin.model.js";
 import { ApiError } from "../utils/ApiError.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 
@@ -23,7 +24,9 @@ export const verifyJWT = asyncHandler(async (req, res, next) => {
 
     // Find user based on token info
     let user;
-    if (decodedToken.role === "admin") {
+    if (decodedToken.role === "superadmin") {
+      user = await SuperAdmin.findById(decodedToken.id).select("-password");
+    } else if (decodedToken.role === "admin") {
       user = await Admin.findById(decodedToken.id).select("-password");
     } else if (decodedToken.role === "supplier") {
       user = await Supplier.findById(decodedToken.id).select("-password");
