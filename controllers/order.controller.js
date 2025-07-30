@@ -21,6 +21,9 @@ export const createOrder = asyncHandler(async (req, res) => {
     notes
   } = req.body;
   
+  console.log('Order creation request body:', req.body);
+  console.log('Items received:', items);
+  
   // Validate required fields
   if (!items || !items.length || !deliveryAddress || !paymentMethod) {
     throw new ApiError(400, "Items, delivery address, and payment method are required");
@@ -31,7 +34,9 @@ export const createOrder = asyncHandler(async (req, res) => {
   
   // Validate items and calculate totals
   for (const item of items) {
+    console.log('Processing item:', item);
     if (!item.product || !item.quantity) {
+      console.log('Invalid item - product:', item.product, 'quantity:', item.quantity);
       throw new ApiError(400, "Product ID and quantity are required for each item");
     }
     

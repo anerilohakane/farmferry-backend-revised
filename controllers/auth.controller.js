@@ -18,7 +18,7 @@ const generateTokensAndSetCookies = async (user, res) => {
     // Set cookies
     const cookieOptions = {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production"
+      secure: process.env.NODE_ENV === 'production' ? true : false,
     };
     
     res.cookie("accessToken", accessToken, {
