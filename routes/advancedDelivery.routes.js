@@ -4,6 +4,7 @@ import {
   getDeliveryTimeEstimate,
   generateDeliveryQRCode,
   generateReplacementQRCode,
+  generateDeliveryOTP,
   verifyDeliveryOTP,
   verifyReplacementOTP,
   requestOrderReplacement,
@@ -54,7 +55,15 @@ router.post(
   generateReplacementQRCode
 );
 
-// ==================== OTP VERIFICATION ====================
+// ==================== OTP GENERATION & VERIFICATION ====================
+
+// Generate delivery OTP
+router.post(
+  "/otp/generate/:orderId",
+  verifyJWT,
+  authorizeRoles("deliveryAssociate"),
+  generateDeliveryOTP
+);
 
 // Verify delivery OTP and complete delivery
 router.post(

@@ -8,7 +8,6 @@ import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import sendEmail from "../utils/email.js";
-import sendSMS from "../utils/sms.js";
 
 // Helper function to generate tokens and save to cookies
 const generateTokensAndSetCookies = async (user, res) => {

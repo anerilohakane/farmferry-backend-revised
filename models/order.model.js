@@ -157,7 +157,7 @@ const orderSchema = new mongoose.Schema(
         },
         coordinates: {
           type: [Number], // [longitude, latitude]
-          default: [0, 0] // Default coordinates (can be updated later)
+          required: false
         }
       },
       state: {
@@ -254,6 +254,9 @@ orderSchema.pre("save", function (next) {
 
   next();
 });
+
+//db.orders.createIndex({ "deliveryAddress.location": "2dsphere" })
+orderSchema.index({ 'deliveryAddress.location': '2dsphere' });
 
 const Order = mongoose.model("Order", orderSchema);
 

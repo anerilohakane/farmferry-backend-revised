@@ -13,6 +13,8 @@ import notificationRoutes from "./notification.routes.js";
 import advancedDeliveryRoutes from "./advancedDelivery.routes.js";
 import superadminRoutes from "./superadmin.routes.js";
 
+import smsRoutes from "./sms.routes.js";
+
 const router = Router();
 
 // Register all routes
@@ -29,5 +31,9 @@ router.use("/delivery-associates", deliveryAssociateRoutes);
 router.use("/notifications", notificationRoutes);
 router.use("/advanced-delivery", advancedDeliveryRoutes);
 router.use("/superadmin", superadminRoutes);
+
+
+router.use("/sms", smsRoutes); 
+
 
 export default router;

@@ -88,7 +88,6 @@ app.get("/test-invoice", (req, res) => {
 
 // API Routes
 app.use("/api/v1", routes);
-app.use("/api/v1", authRoutes); 
 
 // 404 Route
 app.all("*", (req, res) => {
