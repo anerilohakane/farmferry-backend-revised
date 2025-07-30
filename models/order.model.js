@@ -157,7 +157,7 @@ const orderSchema = new mongoose.Schema(
         },
         coordinates: {
           type: [Number], // [longitude, latitude]
-          required: true
+          default: [0, 0] // Default coordinates (can be updated later)
         }
       },
       state: {
