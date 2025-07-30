@@ -1,7 +1,7 @@
 import crypto from 'crypto';
-import sendSMS from './sms.js';
-import sendEmail from './email.js';
+import smsUtils from './sms.js';
 import QRCodeService from './qrCodeService.js';
+import Order from '../models/order.model.js';
 
 /**
  * Delivery Verification Service for OTP-based delivery confirmation
@@ -14,12 +14,11 @@ export class DeliveryVerificationService {
   /**
    * Generate delivery OTP and send to customer
    * @param {string} orderId - Order ID
-   * @param {string} customerPhone - Customer phone number
-   * @param {string} customerEmail - Customer email
+   * @param {string} phone - Customer phone number
    * @param {string} deliveryAssociateId - Delivery associate ID
    * @returns {Promise<Object>} OTP data
    */
-  async generateDeliveryOTP(orderId, customerPhone, customerEmail, deliveryAssociateId) {
+  async generateDeliveryOTP(orderId, phone, deliveryAssociateId) {
     try {
       // Generate 6-digit OTP
       const otp = this.generateOTP();
@@ -27,8 +26,7 @@ export class DeliveryVerificationService {
       // Create delivery verification record
       const verificationData = {
         orderId: orderId,
-        customerPhone: customerPhone,
-        customerEmail: customerEmail,
+        phone: phone,
         deliveryAssociateId: deliveryAssociateId,
         otp: otp,
         otpExpiresAt: new Date(Date.now() + (this.otpExpiryMinutes * 60 * 1000)),
@@ -38,20 +36,21 @@ export class DeliveryVerificationService {
         createdAt: new Date()
       };
 
-      // Send OTP via SMS
-      if (customerPhone) {
-        await this.sendDeliveryOTPSMS(customerPhone, otp, orderId);
-      }
+      // Save OTP and expiry to Order
+      await Order.findByIdAndUpdate(orderId, {
+        otp,
+        otpExpiresAt: new Date(Date.now() + (this.otpExpiryMinutes * 60 * 1000))
+      });
 
-      // Send OTP via Email
-      if (customerEmail) {
-        await this.sendDeliveryOTPEmail(customerEmail, otp, orderId);
+      // Send OTP via SMS only
+      if (phone) {
+        await this.sendDeliveryOTPSMS(phone, otp, orderId);
       }
 
       // Generate QR code for delivery
       const qrCodeData = await QRCodeService.generateDeliveryQRCode(
         orderId, 
-        customerPhone, 
+        phone, 
         deliveryAssociateId
       );
 
@@ -70,11 +69,10 @@ export class DeliveryVerificationService {
    * Generate replacement OTP and send to customer
    * @param {string} orderId - Original order ID
    * @param {string} replacementOrderId - Replacement order ID
-   * @param {string} customerPhone - Customer phone number
-   * @param {string} customerEmail - Customer email
+   * @param {string} phone - Customer phone number
    * @returns {Promise<Object>} OTP data
    */
-  async generateReplacementOTP(orderId, replacementOrderId, customerPhone, customerEmail) {
+  async generateReplacementOTP(orderId, replacementOrderId, phone) {
     try {
       // Generate 6-digit OTP
       const otp = this.generateOTP();
@@ -83,8 +81,7 @@ export class DeliveryVerificationService {
       const verificationData = {
         originalOrderId: orderId,
         replacementOrderId: replacementOrderId,
-        customerPhone: customerPhone,
-        customerEmail: customerEmail,
+        phone: phone,
         otp: otp,
         otpExpiresAt: new Date(Date.now() + (this.otpExpiryMinutes * 60 * 1000)),
         status: 'pending',
@@ -94,21 +91,16 @@ export class DeliveryVerificationService {
         createdAt: new Date()
       };
 
-      // Send OTP via SMS
-      if (customerPhone) {
-        await this.sendReplacementOTPSMS(customerPhone, otp, replacementOrderId);
-      }
-
-      // Send OTP via Email
-      if (customerEmail) {
-        await this.sendReplacementOTPEmail(customerEmail, otp, replacementOrderId);
+      // Send OTP via SMS only
+      if (phone) {
+        await this.sendReplacementOTPSMS(phone, otp, replacementOrderId);
       }
 
       // Generate QR code for replacement
       const qrCodeData = await QRCodeService.generateReplacementQRCode(
         orderId,
         replacementOrderId,
-        customerPhone
+        phone
       );
 
       return {
@@ -126,10 +118,10 @@ export class DeliveryVerificationService {
    * Verify delivery OTP
    * @param {string} orderId - Order ID
    * @param {string} otp - OTP entered by delivery associate
-   * @param {string} customerPhone - Customer phone number
+   * @param {string} phone - Customer phone number
    * @returns {Promise<Object>} Verification result
    */
-  async verifyDeliveryOTP(orderId, otp, customerPhone) {
+  async verifyDeliveryOTP(orderId, otp, phone) {
     try {
       // In a real implementation, you would fetch this from database
       // For now, we'll simulate the verification process
@@ -148,7 +140,7 @@ export class DeliveryVerificationService {
       }
 
       // Verify OTP (in real implementation, compare with stored OTP)
-      const isValidOTP = await this.validateStoredOTP(orderId, otp, customerPhone);
+      const isValidOTP = await this.validateStoredOTP(orderId, otp);
       
       if (!isValidOTP) {
         throw new Error('Invalid OTP');
@@ -170,10 +162,10 @@ export class DeliveryVerificationService {
    * Verify replacement OTP
    * @param {string} replacementOrderId - Replacement order ID
    * @param {string} otp - OTP entered by customer
-   * @param {string} customerPhone - Customer phone number
+   * @param {string} phone - Customer phone number
    * @returns {Promise<Object>} Verification result
    */
-  async verifyReplacementOTP(replacementOrderId, otp, customerPhone) {
+  async verifyReplacementOTP(replacementOrderId, otp, phone) {
     try {
       // Validate OTP format
       if (!otp || otp.length !== 6 || !/^\d{6}$/.test(otp)) {
@@ -189,7 +181,7 @@ export class DeliveryVerificationService {
       }
 
       // Verify OTP (in real implementation, compare with stored OTP)
-      const isValidOTP = await this.validateStoredReplacementOTP(replacementOrderId, otp, customerPhone);
+      const isValidOTP = await this.validateStoredReplacementOTP(replacementOrderId, otp, phone);
       
       if (!isValidOTP) {
         throw new Error('Invalid OTP');
@@ -215,12 +207,26 @@ export class DeliveryVerificationService {
    */
   async sendDeliveryOTPSMS(phone, otp, orderId) {
     try {
+      console.log(`📱 Attempting to send SMS to: ${phone}`);
+      console.log(`📱 OTP: ${otp}, Order ID: ${orderId}`);
+      
       const message = `Your FarmFerry delivery OTP is: ${otp}. Valid for ${this.otpExpiryMinutes} minutes. Order ID: ${orderId}. Do not share this OTP with anyone.`;
       
-      await sendSMS(phone, message);
+      console.log(`📱 SMS Message: ${message}`);
+      
+      await smsUtils.sendSMS(phone, message);
+      
+      console.log(`✅ SMS sent successfully to ${phone}`);
     } catch (error) {
-      console.error('SMS sending error:', error);
-      throw new Error('Failed to send OTP via SMS');
+      console.error('❌ SMS sending error:', error);
+      console.error('❌ Error details:', {
+        phone,
+        otp,
+        orderId,
+        errorMessage: error.message,
+        errorStack: error.stack
+      });
+      throw new Error(`Failed to send OTP via SMS: ${error.message}`);
     }
   }
 
@@ -234,70 +240,14 @@ export class DeliveryVerificationService {
     try {
       const message = `Your FarmFerry replacement order OTP is: ${otp}. Valid for ${this.otpExpiryMinutes} minutes. Replacement Order ID: ${replacementOrderId}. Do not share this OTP with anyone.`;
       
-      await sendSMS(phone, message);
+      await smsUtils.sendSMS(phone, message);
     } catch (error) {
       console.error('SMS sending error:', error);
       throw new Error('Failed to send replacement OTP via SMS');
     }
   }
 
-  /**
-   * Send delivery OTP via Email
-   * @param {string} email - Customer email
-   * @param {string} otp - OTP code
-   * @param {string} orderId - Order ID
-   */
-  async sendDeliveryOTPEmail(email, otp, orderId) {
-    try {
-      const subject = 'FarmFerry Delivery OTP';
-      const html = `
-        <h2>Your Delivery OTP</h2>
-        <p>Your FarmFerry delivery OTP is: <strong>${otp}</strong></p>
-        <p>Order ID: ${orderId}</p>
-        <p>This OTP is valid for ${this.otpExpiryMinutes} minutes.</p>
-        <p><strong>Do not share this OTP with anyone.</strong></p>
-        <p>If you didn't request this OTP, please contact our support team.</p>
-      `;
-      
-      await sendEmail({
-        to: email,
-        subject: subject,
-        html: html
-      });
-    } catch (error) {
-      console.error('Email sending error:', error);
-      throw new Error('Failed to send OTP via email');
-    }
-  }
 
-  /**
-   * Send replacement OTP via Email
-   * @param {string} email - Customer email
-   * @param {string} otp - OTP code
-   * @param {string} replacementOrderId - Replacement order ID
-   */
-  async sendReplacementOTPEmail(email, otp, replacementOrderId) {
-    try {
-      const subject = 'FarmFerry Replacement Order OTP';
-      const html = `
-        <h2>Your Replacement Order OTP</h2>
-        <p>Your FarmFerry replacement order OTP is: <strong>${otp}</strong></p>
-        <p>Replacement Order ID: ${replacementOrderId}</p>
-        <p>This OTP is valid for ${this.otpExpiryMinutes} minutes.</p>
-        <p><strong>Do not share this OTP with anyone.</strong></p>
-        <p>If you didn't request this OTP, please contact our support team.</p>
-      `;
-      
-      await sendEmail({
-        to: email,
-        subject: subject,
-        html: html
-      });
-    } catch (error) {
-      console.error('Email sending error:', error);
-      throw new Error('Failed to send replacement OTP via email');
-    }
-  }
 
   /**
    * Generate 6-digit OTP
@@ -308,15 +258,16 @@ export class DeliveryVerificationService {
   }
 
   /**
-   * Validate stored OTP (placeholder for database integration)
+   * Validate stored OTP using Order model
    * @param {string} orderId - Order ID
    * @param {string} otp - OTP to validate
-   * @param {string} customerPhone - Customer phone number
    * @returns {Promise<boolean>} Validation result
    */
-  async validateStoredOTP(orderId, otp, customerPhone) {
-    // In real implementation, fetch from database and compare
-    // For now, return true for demonstration
+  async validateStoredOTP(orderId, otp) {
+    const order = await Order.findById(orderId);
+    if (!order) return false;
+    if (order.otp !== otp) return false;
+    if (order.otpExpiresAt < new Date()) return false;
     return true;
   }
 
@@ -324,10 +275,10 @@ export class DeliveryVerificationService {
    * Validate stored replacement OTP (placeholder for database integration)
    * @param {string} replacementOrderId - Replacement order ID
    * @param {string} otp - OTP to validate
-   * @param {string} customerPhone - Customer phone number
+   * @param {string} phone - Customer phone number
    * @returns {Promise<boolean>} Validation result
    */
-  async validateStoredReplacementOTP(replacementOrderId, otp, customerPhone) {
+  async validateStoredReplacementOTP(replacementOrderId, otp, phone) {
     // In real implementation, fetch from database and compare
     // For now, return true for demonstration
     return true;
@@ -336,36 +287,18 @@ export class DeliveryVerificationService {
   /**
    * Resend delivery OTP
    * @param {string} orderId - Order ID
-   * @param {string} customerPhone - Customer phone number
-   * @param {string} customerEmail - Customer email
+   * @param {string} phone - Customer phone number
    * @returns {Promise<Object>} New OTP data
    */
-  async resendDeliveryOTP(orderId, customerPhone, customerEmail) {
+  async resendDeliveryOTP(orderId, phone) {
     try {
       // Generate new OTP
       const newOtp = this.generateOTP();
-      
-      // Update verification record (in real implementation, update database)
-      const verificationData = {
-        orderId: orderId,
-        customerPhone: customerPhone,
-        customerEmail: customerEmail,
+      // Update OTP and expiry in Order
+      await Order.findByIdAndUpdate(orderId, {
         otp: newOtp,
-        otpExpiresAt: new Date(Date.now() + (this.otpExpiryMinutes * 60 * 1000)),
-        status: 'pending',
-        attempts: 0,
-        maxAttempts: 3,
-        createdAt: new Date()
-      };
-
-      // Send new OTP
-      if (customerPhone) {
-        await this.sendDeliveryOTPSMS(customerPhone, newOtp, orderId);
-      }
-      
-      if (customerEmail) {
-        await this.sendDeliveryOTPEmail(customerEmail, newOtp, orderId);
-      }
+        otpExpiresAt: new Date(Date.now() + (this.otpExpiryMinutes * 60 * 1000))
+      });
 
       return {
         ...verificationData,

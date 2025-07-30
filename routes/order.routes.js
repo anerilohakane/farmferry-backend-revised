@@ -10,7 +10,9 @@ import {
   getOrderStatusCounts,
   getAvailableOrdersForDelivery, // NEW
   selfAssignOrder, // NEW
-  getMyCustomerOrders // NEW
+  getMyCustomerOrders, // NEW
+  
+  getAvailableOrdersNearby
 } from "../controllers/order.controller.js";
 import { verifyJWT, authorizeRoles } from "../middlewares/auth.middleware.js";
 
@@ -22,12 +24,14 @@ router.use(verifyJWT);
 // Customer routes
 router.post("/", authorizeRoles("customer"), createOrder);
 router.get("/my-orders", authorizeRoles("customer"), getMyCustomerOrders);
+//router.get("/nearby",  getAvailableOrdersNearby)
 
 // Admin routes (must come before other GET routes)
 router.get("/", authorizeRoles("admin"), getAllOrders);
 
 // Delivery associate routes
 router.get("/available-for-delivery", authorizeRoles("deliveryAssociate"), getAvailableOrdersForDelivery);
+//router.get("/available-for-delivery", authorizeRoles("deliveryAssociate"), getAvailableOrdersNearby);
 
 // Common routes (accessible by all authenticated users with appropriate roles)
 router.get("/:id", getOrderById);

@@ -15,6 +15,47 @@ import { uploadToCloudinary } from "../config/cloudinary.js";
  * Handles Google Maps optimization, QR codes, OTP verification, and order replacement
  */
 
+// ==================== OTP GENERATION ====================
+
+/**
+ * Generate delivery OTP for order
+ */
+export const generateDeliveryOTP = asyncHandler(async (req, res) => {
+  const { orderId } = req.params;
+  const deliveryAssociateId = req.user._id;
+
+  const order = await Order.findById(orderId)
+    .populate("customer", "phone email");
+
+  if (!order) {
+    throw new ApiError(404, "Order not found");
+  }
+
+  // Check if order is assigned to this delivery associate
+  if (order.deliveryAssociate?.associate?.toString() !== deliveryAssociateId.toString()) {
+    throw new ApiError(403, "Order not assigned to this delivery associate");
+  }
+
+  // Check if order is out for delivery
+  if (order.status !== "out_for_delivery") {
+    throw new ApiError(400, "Order must be out for delivery to generate OTP");
+  }
+
+  const otpData = await DeliveryVerificationService.generateDeliveryOTP(
+    orderId,
+    order.customer.phone,
+    deliveryAssociateId
+  );
+
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      { message: "OTP generated and sent successfully" },
+      "OTP generated and sent successfully"
+    )
+  );
+});
+
 // ==================== GOOGLE MAPS ROUTE OPTIMIZATION ====================
 
 /**
@@ -230,11 +271,13 @@ export const verifyDeliveryOTP = asyncHandler(async (req, res) => {
   if (!order) {
     throw new ApiError(404, "Order not found");
   }
-
-  if (order.deliveryAssociate.associate.toString() !== deliveryAssociateId) {
+  // Debug logs for assignment check
+  console.log('Order assigned to:', order.deliveryAssociate?.associate?.toString());
+  console.log('Current user:', deliveryAssociateId.toString());
+  if (order.deliveryAssociate?.associate?.toString() !== deliveryAssociateId.toString()) {
     throw new ApiError(403, "Order not assigned to you");
   }
-
+  
   // Verify QR code if provided
   if (qrCodeData) {
     try {
@@ -271,6 +314,15 @@ export const verifyDeliveryOTP = asyncHandler(async (req, res) => {
     updatedByModel: "DeliveryAssociate",
     note: "Delivered with OTP verification"
   });
+
+  // Remove deliveryAddress.location if coordinates are missing or invalid
+  if (
+    order.deliveryAddress &&
+    order.deliveryAddress.location &&
+    !Array.isArray(order.deliveryAddress.location.coordinates)
+  ) {
+    order.deliveryAddress.location = undefined;
+  }
 
   await order.save();
 
@@ -582,7 +634,7 @@ export const resendDeliveryOTP = asyncHandler(async (req, res) => {
   const deliveryAssociateId = req.user._id;
 
   const order = await Order.findById(orderId)
-    .populate("customer", "phone email");
+    .populate("customer", "phone");
 
   if (!order) {
     throw new ApiError(404, "Order not found");
@@ -590,8 +642,7 @@ export const resendDeliveryOTP = asyncHandler(async (req, res) => {
 
   const otpData = await DeliveryVerificationService.resendDeliveryOTP(
     orderId,
-    order.customer.phone,
-    order.customer.email
+    order.customer.phone
   );
 
   return res.status(200).json(
