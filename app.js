@@ -76,6 +76,16 @@ app.get("/api/health", (req, res) => {
   });
 });
 
+// Test invoice file access
+app.get("/test-invoice", (req, res) => {
+  res.status(200).json({
+    status: "success",
+    message: "Invoice test route is working",
+    publicPath: join(__dirname, "public"),
+    invoicePath: join(__dirname, "public/invoices")
+  });
+});
+
 // API Routes
 app.use("/api/v1", routes);
 

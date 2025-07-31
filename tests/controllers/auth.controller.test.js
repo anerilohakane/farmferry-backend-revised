@@ -238,7 +238,7 @@ describe('Auth Controller', () => {
   });
 
   describe('Forgot Password', () => {
-    it('should send a password reset email', async () => {
+    it('should send a password reset OTP for customer', async () => {
       const reqBody = {
         email: 'user@example.com',
         role: 'customer',
@@ -246,7 +246,7 @@ describe('Auth Controller', () => {
 
       const mockUser = {
         email: reqBody.email,
-        generatePasswordResetToken: jest.fn().mockReturnValue('reset_token'),
+        generatePasswordResetOTP: jest.fn().mockReturnValue('123456'),
         save: jest.fn(),
       };
 
@@ -259,13 +259,60 @@ describe('Auth Controller', () => {
       expect(response.status).toBe(200);
       expect(sendEmail).toHaveBeenCalled();
     });
+
+    it('should send a password reset token for admin', async () => {
+      const reqBody = {
+        email: 'admin@example.com',
+        role: 'admin',
+      };
+
+      const mockUser = {
+        email: reqBody.email,
+        generatePasswordResetToken: jest.fn().mockReturnValue('reset_token'),
+        save: jest.fn(),
+      };
+
+      Admin.findOne.mockResolvedValue(mockUser);
+
+      const response = await request(app)
+        .post('/api/v1/auth/forgot-password')
+        .send(reqBody);
+
+      expect(response.status).toBe(200);
+      expect(sendEmail).toHaveBeenCalled();
+    });
   });
 
   describe('Reset Password', () => {
-    it('should reset the password successfully', async () => {
+    it('should reset the password with OTP for customer', async () => {
+      const reqBody = {
+        email: 'user@example.com',
+        otp: '123456',
+        password: 'newPassword123',
+      };
+
+      const mockUser = {
+        email: reqBody.email,
+        password: 'oldPassword',
+        passwordResetOTP: reqBody.otp,
+        passwordResetOTPExpires: Date.now() + 3600000,
+        save: jest.fn(),
+      };
+
+      Customer.findOne.mockResolvedValue(mockUser);
+
+      const response = await request(app)
+        .post('/api/v1/auth/reset-password-otp')
+        .send(reqBody);
+
+      expect(response.status).toBe(200);
+      expect(mockUser.save).toHaveBeenCalled();
+    });
+
+    it('should reset the password with token for admin', async () => {
       const reqBody = {
         password: 'newPassword123',
-        role: 'customer',
+        role: 'admin',
       };
 
       const mockUser = {
@@ -275,7 +322,7 @@ describe('Auth Controller', () => {
         save: jest.fn(),
       };
 
-      Customer.findOne.mockResolvedValue(mockUser);
+      Admin.findOne.mockResolvedValue(mockUser);
 
       const response = await request(app)
         .post('/api/v1/auth/reset-password/some_token')

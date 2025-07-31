@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
+import crypto from "crypto";
 
 // Address Schema for multiple addresses
 const addressSchema = new mongoose.Schema({
@@ -81,6 +82,23 @@ const customerSchema = new mongoose.Schema({
   passwordResetExpires: { 
     type: Date 
   },
+  passwordResetOTP: { 
+    type: String 
+  },
+  passwordResetOTPExpires: { 
+    type: Date 
+  },
+  // Phone verification
+  phoneOTP: { 
+    type: String 
+  },
+  phoneOTPExpires: { 
+    type: Date 
+  },
+  isPhoneVerified: { 
+    type: Boolean, 
+    default: false 
+  },
   lastLogin: { 
     type: Date 
   },
@@ -133,9 +151,9 @@ customerSchema.methods.generateAccessToken = function () {
       email: this.email,
       role: this.role
     }, 
-    process.env.ACCESS_TOKEN_SECRET,
+    process.env.ACCESS_TOKEN_SECRET || 'fallback_access_token_secret',
     {
-      expiresIn: process.env.ACCESS_TOKEN_EXPIRY
+      expiresIn: process.env.ACCESS_TOKEN_EXPIRY || '1d'
     }
   );
 };
@@ -146,9 +164,9 @@ customerSchema.methods.generateRefreshToken = function () {
     {
       id: this._id
     }, 
-    process.env.REFRESH_TOKEN_SECRET,
+    process.env.REFRESH_TOKEN_SECRET || 'fallback_refresh_token_secret',
     {
-      expiresIn: process.env.REFRESH_TOKEN_EXPIRY
+      expiresIn: process.env.REFRESH_TOKEN_EXPIRY || '7d'
     }
   );
 };
@@ -165,6 +183,16 @@ customerSchema.methods.generatePasswordResetToken = function () {
   this.passwordResetExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
   
   return resetToken;
+};
+
+// Generate password reset OTP
+customerSchema.methods.generatePasswordResetOTP = function () {
+  const otp = Math.floor(100000 + Math.random() * 900000).toString(); // 6-digit OTP
+  
+  this.passwordResetOTP = otp;
+  this.passwordResetOTPExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
+  
+  return otp;
 };
 
 const Customer = mongoose.model("Customer", customerSchema);

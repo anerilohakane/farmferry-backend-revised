@@ -9,20 +9,50 @@ const twilioPhoneNumber = "+17753490755";
 const client = twilio(accountSid, authToken);
 
 /**
+ * Format phone number to international format for Twilio
+ * @param {string} phone - Phone number to format
+ * @returns {string} Formatted phone number
+ */
+const formatPhoneNumber = (phone) => {
+  // Remove all non-digit characters
+  let cleaned = phone.replace(/\D/g, '');
+  
+  // If it's a 10-digit Indian number, add +91
+  if (cleaned.length === 10 && cleaned.startsWith('9') || cleaned.startsWith('8') || cleaned.startsWith('7') || cleaned.startsWith('6')) {
+    return `+91${cleaned}`;
+  }
+  
+  // If it already has a country code, just add + if missing
+  if (cleaned.length === 12 && cleaned.startsWith('91')) {
+    return `+${cleaned}`;
+  }
+  
+  // If it's already in international format, return as is
+  if (phone.startsWith('+')) {
+    return phone;
+  }
+  
+  // Default: assume it's an Indian number and add +91
+  return `+91${cleaned}`;
+};
+
+/**
  * Standalone SMS sending function for use by other services
  */
 const sendSMS = async (to, body) => {
   try {
-    console.log(`📱 Twilio: Attempting to send SMS to ${to}`);
+    // Format phone number to international format
+    const formattedPhone = formatPhoneNumber(to);
+    console.log(`📱 Twilio: Original phone: ${to}, Formatted: ${formattedPhone}`);
     console.log(`📱 Twilio: Message body: ${body}`);
     
     const message = await client.messages.create({
       body,
       from: twilioPhoneNumber,
-      to,
+      to: formattedPhone,
     });
     
-    console.log(`✅ Twilio: SMS sent successfully to ${to}`);
+    console.log(`✅ Twilio: SMS sent successfully to ${formattedPhone}`);
     console.log(`✅ Twilio: Message SID: ${message.sid}`);
     
     return message;
@@ -31,7 +61,8 @@ const sendSMS = async (to, body) => {
     console.error("❌ Twilio Error Code:", error.code);
     console.error("❌ Twilio Error Message:", error.message);
     console.error("❌ Twilio Error Details:", {
-      to,
+      originalTo: to,
+      formattedTo: formatPhoneNumber(to),
       from: twilioPhoneNumber,
       bodyLength: body.length
     });
@@ -53,10 +84,11 @@ const sendOrderSMS = async (req, res) => {
   const body = `Hi ${customerName}, your order (ID: ${orderId}) has been placed successfully. Thank you!`;
 
   try {
+    const formattedPhone = formatPhoneNumber(phone);
     await client.messages.create({
       body,
       from: twilioPhoneNumber,
-      to: phone,
+      to: formattedPhone,
     });
 
     res.json({ message: "Order confirmation SMS sent successfully" });
@@ -92,10 +124,11 @@ const sendOTP = async (req, res) => {
     );
 
     // Send OTP via SMS
+    const formattedPhone = formatPhoneNumber(phone);
     await client.messages.create({
       body: `Your delivery confirmation OTP is: ${otp}`,
       from: twilioPhoneNumber,
-      to: phone,
+      to: formattedPhone,
     });
 
     res.json({ message: "OTP sent successfully" });

@@ -20,7 +20,7 @@ export const verifyJWT = asyncHandler(async (req, res, next) => {
     }
 
     // Verify token
-    const decodedToken = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
+    const decodedToken = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET || 'fallback_access_token_secret');
 
     // Find user based on token info
     let user;

@@ -9,6 +9,9 @@ import sendEmail from "../utils/email.js";
 import Supplier from "../models/supplier.model.js";
 import Admin from "../models/admin.model.js";
 import Customer from "../models/customer.model.js";
+import { generateInvoicePDF, shouldGenerateInvoice, getInvoiceUrl } from "../utils/invoiceGenerator.js";
+import fs from 'fs';
+import path from 'path';
 
 // Create a new order
 export const createOrder = asyncHandler(async (req, res) => {
@@ -189,19 +192,35 @@ export const createOrder = asyncHandler(async (req, res) => {
 
     // Send Email to customer
     if (customer && customer.email) {
+      // Populate order with product details for email
+      const populatedOrder = await Order.findById(order._id)
+        .populate("items.product", "name price discountedPrice images")
+        .populate("supplier", "businessName");
+
+      // Generate order summary HTML
+      const orderSummaryHTML = generateOrderSummaryHTML(populatedOrder, customer);
+
       await sendEmail({
         to: customer.email,
-        subject: "Order Confirmation",
-        html: `<p>Your order <b>${order._id}</b> has been placed successfully!</p>`
+        subject: "Order Confirmation - FarmFerry",
+        html: orderSummaryHTML
       });
     }
 
     // Send Email to supplier
     if (supplier && supplier.email) {
+      // Populate order with product details for email
+      const populatedOrder = await Order.findById(order._id)
+        .populate("items.product", "name price discountedPrice images")
+        .populate("customer", "firstName lastName email phone");
+
+      // Generate supplier order notification HTML
+      const supplierOrderHTML = generateSupplierOrderHTML(populatedOrder, supplier);
+
       await sendEmail({
         to: supplier.email,
-        subject: "New Order Received",
-        html: `<p>You have received a new order <b>${order._id}</b>.</p>`
+        subject: "New Order Received - FarmFerry",
+        html: supplierOrderHTML
       });
     }
     // --- End Notification Logic ---
@@ -429,6 +448,11 @@ export const updateOrderStatus = asyncHandler(async (req, res) => {
   
   await order.save();
 
+  // Auto-generate invoice when order is delivered or payment is completed
+  if (status === "delivered" || (order.paymentMethod !== "cash_on_delivery" && order.paymentStatus === "paid")) {
+    await autoGenerateInvoice(order);
+  }
+
   // Notify supplier and admin if order is returned
   if (status === "returned") {
     // Fetch supplier and admin
@@ -543,8 +567,8 @@ export const updateDeliveryStatus = asyncHandler(async (req, res) => {
   // Validate status transition
   const validTransitions = {
     assigned: ["picked_up"],
-    picked_up: ["on_the_way"],
-    on_the_way: ["delivered", "failed"],
+    picked_up: ["out_for_delivery"],
+    out_for_delivery: ["delivered", "failed"],
     delivered: [],
     failed: []
   };
@@ -701,7 +725,7 @@ export const selfAssignOrder = asyncHandler(async (req, res) => {
   order.deliveryAssociate = {
     associate: req.user._id,
     assignedAt: new Date(),
-    status: "assigned"
+    status: "picked_up"
   };
   await order.save();
   return res.status(200).json(
@@ -802,6 +826,451 @@ export const getAvailableOrdersNearby = asyncHandler(async (req, res) => {
 });
 
 
+// Generate invoice for an order
+export const generateOrderInvoice = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  
+  const order = await Order.findById(id)
+    .populate("customer", "firstName lastName email phone")
+    .populate("supplier", "businessName email phone")
+    .populate("items.product", "name images price discountedPrice");
+  
+  if (!order) {
+    throw new ApiError(404, "Order not found");
+  }
+  
+  // Check authorization
+  const isCustomer = req.user.role === "customer" && order.customer._id.toString() === req.user._id.toString();
+  const isSupplier = req.user.role === "supplier" && order.supplier._id.toString() === req.user._id.toString();
+  const isAdmin = req.user.role === "admin";
+  
+  if (!isCustomer && !isSupplier && !isAdmin) {
+    throw new ApiError(403, "You are not authorized to generate invoice for this order");
+  }
+  
+  // Check if invoice should be generated
+  if (!shouldGenerateInvoice(order)) {
+    throw new ApiError(400, "Invoice can only be generated for delivered orders or paid online payments");
+  }
+  
+  // Check if invoice already exists
+  if (order.invoiceUrl) {
+    return res.status(200).json(
+      new ApiResponse(
+        200,
+        { 
+          invoiceUrl: getInvoiceUrl(order),
+          message: "Invoice already exists"
+        },
+        "Invoice URL retrieved successfully"
+      )
+    );
+  }
+  
+  try {
+    // Generate invoice
+    const invoiceUrl = await generateInvoicePDF(order, order.customer, order.supplier);
+    
+    // Update order with invoice URL
+    order.invoiceUrl = invoiceUrl;
+    await order.save();
+    
+    return res.status(200).json(
+      new ApiResponse(
+        200,
+        { invoiceUrl },
+        "Invoice generated successfully"
+      )
+    );
+  } catch (error) {
+    console.error('Error generating invoice:', error);
+    throw new ApiError(500, "Failed to generate invoice");
+  }
+});
+
+// Get invoice file for an order
+export const getOrderInvoice = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  
+  const order = await Order.findById(id)
+    .populate("customer", "firstName lastName email phone")
+    .populate("supplier", "businessName email phone");
+  
+  if (!order) {
+    throw new ApiError(404, "Order not found");
+  }
+  
+  // Check authorization
+  const isCustomer = req.user.role === "customer" && order.customer._id.toString() === req.user._id.toString();
+  const isSupplier = req.user.role === "supplier" && order.supplier._id.toString() === req.user._id.toString();
+  const isAdmin = req.user.role === "admin";
+  
+  if (!isCustomer && !isSupplier && !isAdmin) {
+    throw new ApiError(403, "You are not authorized to view invoice for this order");
+  }
+  
+  if (!order.invoiceUrl) {
+    throw new ApiError(404, "Invoice not found for this order");
+  }
+  
+  try {
+    // Get the file path from the URL
+    const filePath = path.join(__dirname, '../public', order.invoiceUrl);
+    
+    // Check if file exists
+    if (!fs.existsSync(filePath)) {
+      throw new ApiError(404, "Invoice file not found");
+    }
+    
+    // Set headers for text file download
+    res.setHeader('Content-Type', 'text/plain');
+    res.setHeader('Content-Disposition', `attachment; filename="invoice-${order.orderId}.txt"`);
+    
+    // Stream the file
+    const fileStream = fs.createReadStream(filePath);
+    fileStream.pipe(res);
+  } catch (error) {
+    console.error('Error serving invoice file:', error);
+    throw new ApiError(500, "Failed to serve invoice file");
+  }
+});
+
+// Auto-generate invoice when order is delivered
+export const autoGenerateInvoice = async (order) => {
+  try {
+    if (shouldGenerateInvoice(order)) {
+      const populatedOrder = await Order.findById(order._id)
+        .populate("customer", "firstName lastName email phone")
+        .populate("supplier", "businessName email phone")
+        .populate("items.product", "name images price discountedPrice");
+      
+      if (!populatedOrder.invoiceUrl) {
+        const invoiceUrl = await generateInvoicePDF(populatedOrder, populatedOrder.customer, populatedOrder.supplier);
+        populatedOrder.invoiceUrl = invoiceUrl;
+        await populatedOrder.save();
+        
+        console.log(`Invoice generated for order ${order.orderId}: ${invoiceUrl}`);
+      }
+    }
+  } catch (error) {
+    console.error('Error auto-generating invoice:', error);
+  }
+};
+
+// Helper function to generate customer order summary HTML
+const generateOrderSummaryHTML = (order, customer) => {
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency: 'INR'
+    }).format(amount);
+  };
+
+  const formatDate = (date) => {
+    return new Date(date).toLocaleDateString('en-IN', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+  };
+
+  // Generate product items HTML
+  const productItemsHTML = order.items.map(item => {
+    const product = item.product;
+    const itemPrice = item.discountedPrice || item.price;
+    const itemTotal = item.quantity * itemPrice;
+    const variationText = item.variation ? ` (${item.variation.name}: ${item.variation.value})` : '';
+    
+    return `
+      <tr style="border-bottom: 1px solid #e0e0e0;">
+        <td style="padding: 12px; text-align: left;">
+          <div style="font-weight: 600; color: #333;">${product.name}${variationText}</div>
+        </td>
+        <td style="padding: 12px; text-align: center;">${item.quantity}</td>
+        <td style="padding: 12px; text-align: right;">${formatCurrency(itemPrice)}</td>
+        <td style="padding: 12px; text-align: right;">${formatCurrency(itemTotal)}</td>
+      </tr>
+    `;
+  }).join('');
+
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Order Confirmation - FarmFerry</title>
+    </head>
+    <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+      <div style="background: linear-gradient(135deg, #4CAF50, #45a049); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
+        <h1 style="margin: 0; font-size: 28px;">🍃 FarmFerry</h1>
+        <p style="margin: 10px 0 0 0; font-size: 16px; opacity: 0.9;">Purely Fresh, Perfectly Delivered!!</p>
+      </div>
+      
+      <div style="background: white; padding: 30px; border: 1px solid #e0e0e0; border-top: none;">
+        <h2 style="color: #4CAF50; margin-top: 0;">Order Confirmation</h2>
+        <p>Dear <strong>${customer.firstName} ${customer.lastName}</strong>,</p>
+        <p>Thank you for your order! We're excited to bring fresh, quality products from our trusted farmers directly to your doorstep.</p>
+        
+        <div style="background: #f9f9f9; padding: 20px; border-radius: 8px; margin: 20px 0;">
+          <h3 style="margin-top: 0; color: #333;">Order Details</h3>
+          <table style="width: 100%; margin-bottom: 15px;">
+            <tr>
+              <td style="font-weight: 600;">Order ID:</td>
+              <td>${order._id}</td>
+            </tr>
+            <tr>
+              <td style="font-weight: 600;">Order Date:</td>
+              <td>${formatDate(order.createdAt)}</td>
+            </tr>
+            <tr>
+              <td style="font-weight: 600;">Supplier:</td>
+              <td>${order.supplier.businessName}</td>
+            </tr>
+            <tr>
+              <td style="font-weight: 600;">Payment Method:</td>
+              <td>${order.paymentMethod === 'cash_on_delivery' ? 'Cash on Delivery' : 'Online Payment'}</td>
+            </tr>
+            <tr>
+              <td style="font-weight: 600;">Delivery Type:</td>
+              <td>${order.isExpressDelivery ? 'Express Delivery' : 'Standard Delivery'}</td>
+            </tr>
+          </table>
+        </div>
+
+        <div style="margin: 25px 0;">
+          <h3 style="color: #333;">Order Items</h3>
+          <table style="width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+            <thead style="background: #4CAF50; color: white;">
+              <tr>
+                <th style="padding: 15px; text-align: left;">Product</th>
+                <th style="padding: 15px; text-align: center;">Qty</th>
+                <th style="padding: 15px; text-align: right;">Price</th>
+                <th style="padding: 15px; text-align: right;">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${productItemsHTML}
+            </tbody>
+          </table>
+        </div>
+
+        <div style="background: #f9f9f9; padding: 20px; border-radius: 8px; margin: 20px 0;">
+          <h3 style="margin-top: 0; color: #333;">Order Summary</h3>
+          <table style="width: 100%;">
+            <tr>
+              <td style="padding: 8px 0; font-weight: 600;">Subtotal:</td>
+              <td style="padding: 8px 0; text-align: right;">${formatCurrency(order.subtotal)}</td>
+            </tr>
+            ${order.discountAmount > 0 ? `
+            <tr>
+              <td style="padding: 8px 0; font-weight: 600; color: #4CAF50;">Discount:</td>
+              <td style="padding: 8px 0; text-align: right; color: #4CAF50;">-${formatCurrency(order.discountAmount)}</td>
+            </tr>
+            ` : ''}
+            <tr>
+              <td style="padding: 8px 0; font-weight: 600;">Delivery Charge:</td>
+              <td style="padding: 8px 0; text-align: right;">${formatCurrency(order.deliveryCharge)}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; font-weight: 600;">Taxes:</td>
+              <td style="padding: 8px 0; text-align: right;">${formatCurrency(order.taxes)}</td>
+            </tr>
+            <tr style="border-top: 2px solid #4CAF50; font-size: 18px;">
+              <td style="padding: 12px 0; font-weight: 700;">Total Amount:</td>
+              <td style="padding: 12px 0; text-align: right; font-weight: 700;">${formatCurrency(order.totalAmount)}</td>
+            </tr>
+          </table>
+        </div>
+
+        <div style="background: #e8f5e8; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #4CAF50;">
+          <h3 style="margin-top: 0; color: #2e7d32;">Delivery Information</h3>
+          <p style="margin: 5px 0;"><strong>Address:</strong> ${order.deliveryAddress.street}, ${order.deliveryAddress.city}, ${order.deliveryAddress.state} ${order.deliveryAddress.pincode}</p>
+          <p style="margin: 5px 0;"><strong>Estimated Delivery:</strong> ${formatDate(order.estimatedDeliveryDate)}</p>
+          ${order.notes ? `<p style="margin: 5px 0;"><strong>Notes:</strong> ${order.notes}</p>` : ''}
+        </div>
+
+        <div style="text-align: center; margin: 30px 0;">
+          <p style="color: #666; font-size: 14px;">Thank you for choosing FarmFerry!</p>
+          <p style="color: #666; font-size: 14px;">For any questions, please contact our support team.</p>
+        </div>
+      </div>
+      
+      <div style="background: #f5f5f5; padding: 20px; text-align: center; border-radius: 0 0 10px 10px; font-size: 12px; color: #666;">
+        <p>This is an automated email from FarmFerry. Please do not reply to this email.</p>
+      </div>
+    </body>
+    </html>
+  `;
+};
+
+// Helper function to generate supplier order notification HTML
+const generateSupplierOrderHTML = (order, supplier) => {
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency: 'INR'
+    }).format(amount);
+  };
+
+  const formatDate = (date) => {
+    return new Date(date).toLocaleDateString('en-IN', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  // Generate product items HTML
+  const productItemsHTML = order.items.map(item => {
+    const product = item.product;
+    const itemPrice = item.discountedPrice || item.price;
+    const itemTotal = item.quantity * itemPrice;
+    const variationText = item.variation ? ` (${item.variation.name}: ${item.variation.value})` : '';
+    
+    return `
+      <tr style="border-bottom: 1px solid #e0e0e0;">
+        <td style="padding: 12px; text-align: left;">
+          <div style="font-weight: 600; color: #333;">${product.name}${variationText}</div>
+        </td>
+        <td style="padding: 12px; text-align: center;">${item.quantity}</td>
+        <td style="padding: 12px; text-align: right;">${formatCurrency(itemPrice)}</td>
+        <td style="padding: 12px; text-align: right;">${formatCurrency(itemTotal)}</td>
+      </tr>
+    `;
+  }).join('');
+
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>New Order - FarmFerry</title>
+    </head>
+    <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+      <div style="background: linear-gradient(135deg, #FF9800, #F57C00); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
+        <h1 style="margin: 0; font-size: 28px;">🍃 FarmFerry</h1>
+        <p style="margin: 10px 0 0 0; font-size: 16px; opacity: 0.9;">New Order Notification</p>
+      </div>
+      
+      <div style="background: white; padding: 30px; border: 1px solid #e0e0e0; border-top: none;">
+        <h2 style="color: #FF9800; margin-top: 0;">New Order Received</h2>
+        <p>Dear <strong>${supplier.businessName}</strong>,</p>
+        <p>You have received a new order from FarmFerry. Please review the details below and prepare the items for delivery.</p>
+        
+        <div style="background: #fff3e0; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #FF9800;">
+          <h3 style="margin-top: 0; color: #333;">Order Information</h3>
+          <table style="width: 100%; margin-bottom: 15px;">
+            <tr>
+              <td style="font-weight: 600;">Order ID:</td>
+              <td>${order._id}</td>
+            </tr>
+            <tr>
+              <td style="font-weight: 600;">Order Date:</td>
+              <td>${formatDate(order.createdAt)}</td>
+            </tr>
+            <tr>
+              <td style="font-weight: 600;">Customer:</td>
+              <td>${order.customer.firstName} ${order.customer.lastName}</td>
+            </tr>
+            <tr>
+              <td style="font-weight: 600;">Customer Email:</td>
+              <td>${order.customer.email}</td>
+            </tr>
+            <tr>
+              <td style="font-weight: 600;">Customer Phone:</td>
+              <td>${order.customer.phone || 'Not provided'}</td>
+            </tr>
+            <tr>
+              <td style="font-weight: 600;">Payment Method:</td>
+              <td>${order.paymentMethod === 'cash_on_delivery' ? 'Cash on Delivery' : 'Online Payment'}</td>
+            </tr>
+            <tr>
+              <td style="font-weight: 600;">Delivery Type:</td>
+              <td>${order.isExpressDelivery ? 'Express Delivery' : 'Standard Delivery'}</td>
+            </tr>
+          </table>
+        </div>
+
+        <div style="margin: 25px 0;">
+          <h3 style="color: #333;">Order Items</h3>
+          <table style="width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+            <thead style="background: #FF9800; color: white;">
+              <tr>
+                <th style="padding: 15px; text-align: left;">Product</th>
+                <th style="padding: 15px; text-align: center;">Qty</th>
+                <th style="padding: 15px; text-align: right;">Price</th>
+                <th style="padding: 15px; text-align: right;">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${productItemsHTML}
+            </tbody>
+          </table>
+        </div>
+
+        <div style="background: #f9f9f9; padding: 20px; border-radius: 8px; margin: 20px 0;">
+          <h3 style="margin-top: 0; color: #333;">Order Summary</h3>
+          <table style="width: 100%;">
+            <tr>
+              <td style="padding: 8px 0; font-weight: 600;">Subtotal:</td>
+              <td style="padding: 8px 0; text-align: right;">${formatCurrency(order.subtotal)}</td>
+            </tr>
+            ${order.discountAmount > 0 ? `
+            <tr>
+              <td style="padding: 8px 0; font-weight: 600; color: #4CAF50;">Discount:</td>
+              <td style="padding: 8px 0; text-align: right; color: #4CAF50;">-${formatCurrency(order.discountAmount)}</td>
+            </tr>
+            ` : ''}
+            <tr>
+              <td style="padding: 8px 0; font-weight: 600;">Delivery Charge:</td>
+              <td style="padding: 8px 0; text-align: right;">${formatCurrency(order.deliveryCharge)}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; font-weight: 600;">Taxes:</td>
+              <td style="padding: 8px 0; text-align: right;">${formatCurrency(order.taxes)}</td>
+            </tr>
+            <tr style="border-top: 2px solid #FF9800; font-size: 18px;">
+              <td style="padding: 12px 0; font-weight: 700;">Total Amount:</td>
+              <td style="padding: 12px 0; text-align: right; font-weight: 700;">${formatCurrency(order.totalAmount)}</td>
+            </tr>
+          </table>
+        </div>
+
+        <div style="background: #e3f2fd; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #2196F3;">
+          <h3 style="margin-top: 0; color: #1976d2;">Delivery Information</h3>
+          <p style="margin: 5px 0;"><strong>Address:</strong> ${order.deliveryAddress.street}, ${order.deliveryAddress.city}, ${order.deliveryAddress.state} ${order.deliveryAddress.pincode}</p>
+          <p style="margin: 5px 0;"><strong>Estimated Delivery:</strong> ${formatDate(order.estimatedDeliveryDate)}</p>
+          ${order.notes ? `<p style="margin: 5px 0;"><strong>Customer Notes:</strong> ${order.notes}</p>` : ''}
+        </div>
+
+        <div style="background: #fff8e1; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #FFC107;">
+          <h3 style="margin-top: 0; color: #f57f17;">Next Steps</h3>
+          <ul style="margin: 10px 0; padding-left: 20px;">
+            <li>Review the order items and quantities</li>
+            <li>Prepare the products for packaging</li>
+            <li>Update the order status to "Processing" when ready</li>
+            <li>Ensure all items are fresh and meet quality standards</li>
+          </ul>
+        </div>
+
+        <div style="text-align: center; margin: 30px 0;">
+          <p style="color: #666; font-size: 14px;">Thank you for being a part of FarmFerry!</p>
+          <p style="color: #666; font-size: 14px;">Please process this order promptly to maintain customer satisfaction.</p>
+        </div>
+      </div>
+      
+      <div style="background: #f5f5f5; padding: 20px; text-align: center; border-radius: 0 0 10px 10px; font-size: 12px; color: #666;">
+        <p>This is an automated email from FarmFerry. Please do not reply to this email.</p>
+      </div>
+    </body>
+    </html>
+  `;
+};
+
 export default {
   createOrder,
   getAllOrders,
@@ -814,5 +1283,7 @@ export default {
   getAvailableOrdersForDelivery,
   selfAssignOrder,
   getMyCustomerOrders,
-  getAvailableOrdersNearby
+  getAvailableOrdersNearby,
+  generateOrderInvoice,
+  getOrderInvoice
 };

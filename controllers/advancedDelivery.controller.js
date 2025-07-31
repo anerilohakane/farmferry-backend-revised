@@ -9,6 +9,7 @@ import TomTomService from "../config/googleMaps.js";
 import QRCodeService from "../utils/qrCodeService.js";
 import DeliveryVerificationService from "../utils/deliveryVerificationService.js";
 import { uploadToCloudinary } from "../config/cloudinary.js";
+import { customAlphabet } from 'nanoid';
 
 /**
  * Advanced Delivery Controller
@@ -458,7 +459,7 @@ export const requestOrderReplacement = asyncHandler(async (req, res) => {
     deliveryAddress: originalOrder.deliveryAddress,
     totalAmount: originalOrder.totalAmount,
     status: "pending",
-    orderId: `REP-${Date.now()}`,
+    orderId: nanoid(),
     isReplacement: true,
     originalOrder: orderId
   });
