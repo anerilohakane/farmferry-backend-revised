@@ -8,6 +8,7 @@ import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import sendEmail from "../utils/email.js";
+import sendSMS from "../utils/sms.js";
 
 // Helper function to generate tokens and save to cookies
 const generateTokensAndSetCookies = async (user, res) => {
@@ -39,11 +40,11 @@ const generateTokensAndSetCookies = async (user, res) => {
 
 // Customer Registration
 export const registerCustomer = asyncHandler(async (req, res) => {
-  const { firstName, lastName, email, password, phone } = req.body;
+  const { name, email, password, phone } = req.body;
   
   // Validate required fields
-  if (!firstName || !lastName || !email || !password) {
-    throw new ApiError(400, "All fields are required");
+  if (!name || !email || !password || !phone) {
+    throw new ApiError(400, "Name, email, phone, and password are required");
   }
   
   // Check if email already exists
@@ -52,13 +53,30 @@ export const registerCustomer = asyncHandler(async (req, res) => {
     throw new ApiError(409, "Email is already registered");
   }
   
-  // Create new customer
+  // Check if phone already exists
+  const existingPhone = await Customer.findOne({ phone });
+  if (existingPhone) {
+    throw new ApiError(409, "Phone number is already registered");
+  }
+  
+  // Split name into firstName and lastName
+  const nameParts = name.trim().split(' ');
+  const firstName = nameParts[0];
+  const lastName = nameParts.slice(1).join(' ') || '';
+  
+  // Generate phone verification OTP
+  const phoneOTP = Math.floor(100000 + Math.random() * 900000).toString();
+  
+  // Create new customer with phone verification pending
   const customer = await Customer.create({
     firstName,
     lastName,
     email: email.toLowerCase(),
     password,
     phone,
+    phoneOTP,
+    phoneOTPExpires: Date.now() + 10 * 60 * 1000, // 10 minutes
+    isPhoneVerified: false,
     lastLogin: new Date()
   });
   
@@ -88,28 +106,43 @@ export const registerCustomer = asyncHandler(async (req, res) => {
     console.error("Error sending welcome email:", error);
   }
 
-  // Send verification SMS
-  if (createdCustomer.phone) {
-    try {
-      await sendSMS(
-        createdCustomer.phone,
-        `Welcome to FarmFerry, ${createdCustomer.firstName}! Your account has been created successfully.`
-      );
-    } catch (error) {
-      console.error("Error sending welcome SMS:", error);
-    }
+  // Send phone verification OTP
+  let smsSent = false;
+  try {
+    await sendSMS(
+      createdCustomer.phone,
+      `Your FarmFerry verification OTP is: ${phoneOTP}. Valid for 10 minutes.`
+    );
+    smsSent = true;
+  } catch (error) {
+    console.error("Error sending phone verification OTP:", error);
+    // Don't fail registration if SMS fails, but log it
   }
+  
+  // For now, always set requiresPhoneVerification to false to redirect to login
+  // TODO: Enable phone verification when SMS is properly configured
+  smsSent = false;
   
   // Send response
   return res.status(201).json(
     new ApiResponse(
       201,
       {
-        customer: createdCustomer,
+        customer: {
+          _id: createdCustomer._id,
+          firstName: createdCustomer.firstName,
+          lastName: createdCustomer.lastName,
+          email: createdCustomer.email,
+          phone: createdCustomer.phone,
+          isPhoneVerified: createdCustomer.isPhoneVerified
+        },
         accessToken,
-        refreshToken
+        refreshToken,
+        requiresPhoneVerification: smsSent
       },
-      "Customer registered successfully"
+      smsSent 
+        ? "Customer registered successfully. Please verify your phone number with the OTP sent to your mobile."
+        : "Customer registered successfully! You can log in now."
     )
   );
 });
@@ -439,83 +472,179 @@ export const forgotPassword = asyncHandler(async (req, res) => {
     throw new ApiError(404, "User not found");
   }
   
-  // Generate reset token
-  const resetToken = user.generatePasswordResetToken();
-  await user.save({ validateBeforeSave: false });
-  
-  // Create reset URL
-  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
-  const resetURL = `${frontendUrl}/reset-password/${resetToken}`;
+  // Generate reset token or OTP based on role
+  if (role === "customer") {
+    // For customers, generate OTP
+    const resetOTP = user.generatePasswordResetOTP();
+    await user.save({ validateBeforeSave: false });
 
-  try {
-    await sendEmail({
-      to: user.email,
-      subject: "Password Reset Request",
-      html: `
-        <h1>Password Reset Request</h1>
-        <p>You are receiving this email because you (or someone else) has requested the reset of a password.</p>
-        <p>Please click on the following link, or paste this into your browser to complete the process:</p>
-        <a href="${resetURL}" style="display: inline-block; padding: 10px 20px; background-color: #28a745; color: #fff; text-decoration: none; border-radius: 5px;">Reset Password</a>
-        <p>If you did not request this, please ignore this email and your password will remain unchanged.</p>
-      `,
-    });
-  } catch (error) {
-    console.error("Error sending password reset email:", error);
-    throw new ApiError(500, "There was an error sending the email. Please try again later.");
+    try {
+      await sendEmail({
+        to: user.email,
+        subject: "Password Reset OTP",
+        html: `
+          <h1>Password Reset OTP</h1>
+          <p>You are receiving this email because you (or someone else) has requested the reset of your password.</p>
+          <p>Your password reset OTP is: <strong style="font-size: 24px; color: #28a745; letter-spacing: 2px;">${resetOTP}</strong></p>
+          <p>This OTP will expire in 10 minutes.</p>
+          <p>If you did not request this, please ignore this email and your password will remain unchanged.</p>
+        `,
+      });
+    } catch (error) {
+      console.error("Error sending password reset OTP email:", error);
+      throw new ApiError(500, "There was an error sending the email. Please try again later.");
+    }
+    
+    // Send response
+    return res.status(200).json(
+      new ApiResponse(
+        200,
+        {},
+        "Password reset OTP sent to email"
+      )
+    );
+  } else {
+    // For admin and supplier, use token (existing logic)
+    const resetToken = user.generatePasswordResetToken();
+    await user.save({ validateBeforeSave: false });
+    
+    // Create reset URL
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    const resetURL = `${frontendUrl}/reset-password/${resetToken}`;
+
+    try {
+      await sendEmail({
+        to: user.email,
+        subject: "Password Reset Request",
+        html: `
+          <h1>Password Reset Request</h1>
+          <p>You are receiving this email because you (or someone else) has requested the reset of a password.</p>
+          <p>Please click on the following link, or paste this into your browser to complete the process:</p>
+          <a href="${resetURL}" style="display: inline-block; padding: 10px 20px; background-color: #28a745; color: #fff; text-decoration: none; border-radius: 5px;">Reset Password</a>
+          <p>If you did not request this, please ignore this email and your password will remain unchanged.</p>
+        `,
+      });
+    } catch (error) {
+      console.error("Error sending password reset email:", error);
+      throw new ApiError(500, "There was an error sending the email. Please try again later.");
+    }
+    
+    // Send response
+    return res.status(200).json(
+      new ApiResponse(
+        200,
+        {},
+        "Password reset instructions sent to email"
+      )
+    );
   }
-  
-  // Send response
-  return res.status(200).json(
-    new ApiResponse(
-      200,
-      {},
-      "Password reset instructions sent to email"
-    )
-  );
 });
 
 // Reset Password
 export const resetPassword = asyncHandler(async (req, res) => {
   const { token } = req.params;
-  const { password, role = "customer" } = req.body;
+  const { password, role = "customer", otp } = req.body;
   
-  if (!token || !password) {
-    throw new ApiError(400, "Token and password are required");
-  }
-  
-  // Hash the token
-  const hashedToken = crypto
-    .createHash("sha256")
-    .update(token)
-    .digest("hex");
-  
-  // Find user based on role
-  let user;
-  if (role === "admin") {
-    user = await Admin.findOne({
-      passwordResetToken: hashedToken,
-      passwordResetExpires: { $gt: Date.now() }
+  if (role === "customer") {
+    // For customers, use OTP
+    if (!otp || !password) {
+      throw new ApiError(400, "OTP and password are required");
+    }
+    
+    // Find customer with valid OTP
+    const user = await Customer.findOne({
+      passwordResetOTP: otp,
+      passwordResetOTPExpires: { $gt: Date.now() }
     });
-  } else if (role === "supplier") {
-    user = await Supplier.findOne({
-      passwordResetToken: hashedToken,
-      passwordResetExpires: { $gt: Date.now() }
-    });
+    
+    if (!user) {
+      throw new ApiError(400, "OTP is invalid or has expired");
+    }
+    
+    // Update password and clear OTP
+    user.password = password;
+    user.passwordResetOTP = undefined;
+    user.passwordResetOTPExpires = undefined;
+    await user.save();
+    
+    // Send response
+    return res.status(200).json(
+      new ApiResponse(
+        200,
+        {},
+        "Password reset successful"
+      )
+    );
   } else {
-    user = await Customer.findOne({
-      passwordResetToken: hashedToken,
-      passwordResetExpires: { $gt: Date.now() }
-    });
+    // For admin and supplier, use token (existing logic)
+    if (!token || !password) {
+      throw new ApiError(400, "Token and password are required");
+    }
+    
+    // Hash the token
+    const hashedToken = crypto
+      .createHash("sha256")
+      .update(token)
+      .digest("hex");
+    
+    // Find user based on role
+    let user;
+    if (role === "admin") {
+      user = await Admin.findOne({
+        passwordResetToken: hashedToken,
+        passwordResetExpires: { $gt: Date.now() }
+      });
+    } else if (role === "supplier") {
+      user = await Supplier.findOne({
+        passwordResetToken: hashedToken,
+        passwordResetExpires: { $gt: Date.now() }
+      });
+    }
+    
+    if (!user) {
+      throw new ApiError(400, "Token is invalid or has expired");
+    }
+    
+    // Update password
+    user.password = password;
+    user.passwordResetToken = undefined;
+    user.passwordResetExpires = undefined;
+    await user.save();
+    
+    // Send response
+    return res.status(200).json(
+      new ApiResponse(
+        200,
+        {},
+        "Password reset successful"
+      )
+    );
   }
+});
+
+// Reset Password with OTP (for customers)
+export const resetPasswordWithOTP = asyncHandler(async (req, res) => {
+  const { email, otp, password } = req.body;
+  
+  if (!email || !otp || !password) {
+    throw new ApiError(400, "Email, OTP and password are required");
+  }
+  
+  // Find customer with valid OTP
+  const user = await Customer.findOne({
+    email: email.toLowerCase(),
+    passwordResetOTP: otp,
+    passwordResetOTPExpires: { $gt: Date.now() }
+  });
   
   if (!user) {
-    throw new ApiError(400, "Token is invalid or has expired");
+    throw new ApiError(400, "OTP is invalid or has expired");
   }
   
-  // Update password
+  // Update password and clear OTP
   user.password = password;
-  user.passwordResetToken = undefined;
-  user.passwordResetExpires = undefined;
+  user.passwordResetOTP = undefined;
+  user.passwordResetOTPExpires = undefined;
   await user.save();
   
   // Send response
@@ -533,29 +662,53 @@ export const sendPhoneVerification = asyncHandler(async (req, res) => {
   const { phone } = req.body;
 
   if (!phone) {
-    // throw new ApiError(400, "Phone number is required");
+    throw new ApiError(400, "Phone number is required");
   }
 
+  // First try to find customer
+  let customer = await Customer.findOne({ phone });
+
+  if (customer) {
+    // Generate new phone verification OTP for customer
+    const phoneOTP = Math.floor(100000 + Math.random() * 900000).toString();
+    customer.phoneOTP = phoneOTP;
+    customer.phoneOTPExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
+    await customer.save({ validateBeforeSave: false });
+
+    try {
+      await sendSMS(
+        customer.phone,
+        `Your FarmFerry verification OTP is: ${phoneOTP}. Valid for 10 minutes.`
+      );
+    } catch (error) {
+      console.error("Error sending verification SMS:", error);
+      throw new ApiError(500, "There was an error sending the SMS. Please try again later.");
+    }
+
+    return res.status(200).json(new ApiResponse(200, {}, "Verification OTP sent successfully"));
+  }
+
+  // If not customer, try supplier
   const supplier = await Supplier.findOne({ phone });
 
-  if (!supplier) {
-    throw new ApiError(404, "Supplier not found");
+  if (supplier) {
+    const otp = supplier.generatePhoneVerificationToken();
+    await supplier.save({ validateBeforeSave: false });
+
+    try {
+      await sendSMS(
+        supplier.phone,
+        `Your FarmFerry verification code is: ${otp}`
+      );
+    } catch (error) {
+      console.error("Error sending verification SMS:", error);
+      throw new ApiError(500, "There was an error sending the SMS. Please try again later.");
+    }
+
+    return res.status(200).json(new ApiResponse(200, {}, "Verification OTP sent successfully"));
   }
 
-  const otp = supplier.generatePhoneVerificationToken();
-  await supplier.save({ validateBeforeSave: false });
-
-  try {
-    await sendSMS(
-      supplier.phone,
-      `Your FarmFerry verification code is: ${otp}`
-    );
-  } catch (error) {
-    console.error("Error sending verification SMS:", error);
-    throw new ApiError(500, "There was an error sending the SMS. Please try again later.");
-  }
-
-  return res.status(200).json(new ApiResponse(200, {}, "Verification OTP sent successfully"));
+  throw new ApiError(404, "User not found with this phone number");
 });
 
 // Verify Phone OTP
@@ -712,22 +865,49 @@ export const verifyPhoneOTP = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Phone number and OTP are required");
   }
 
+  // First try to find customer
+  let customer = await Customer.findOne({
+    phone,
+    phoneOTP: otp,
+    phoneOTPExpires: { $gt: Date.now() },
+  });
+
+  if (customer) {
+    customer.isPhoneVerified = true;
+    customer.phoneOTP = undefined;
+    customer.phoneOTPExpires = undefined;
+    await customer.save({ validateBeforeSave: false });
+
+    return res.status(200).json(
+      new ApiResponse(200, { 
+        user: customer,
+        userType: "customer"
+      }, "Phone number verified successfully")
+    );
+  }
+
+  // If not customer, try delivery associate
   const deliveryAssociate = await DeliveryAssociate.findOne({
     phone,
     phoneVerificationToken: otp,
     phoneVerificationExpires: { $gt: Date.now() },
   });
 
-  if (!deliveryAssociate) {
-    throw new ApiError(400, "Invalid OTP or OTP has expired");
+  if (deliveryAssociate) {
+    deliveryAssociate.isPhoneVerified = true;
+    deliveryAssociate.phoneVerificationToken = undefined;
+    deliveryAssociate.phoneVerificationExpires = undefined;
+    await deliveryAssociate.save({ validateBeforeSave: false });
+
+    return res.status(200).json(
+      new ApiResponse(200, { 
+        user: deliveryAssociate,
+        userType: "deliveryAssociate"
+      }, "Phone number verified successfully")
+    );
   }
 
-  deliveryAssociate.isPhoneVerified = true;
-  deliveryAssociate.phoneVerificationToken = undefined;
-  deliveryAssociate.phoneVerificationExpires = undefined;
-  await deliveryAssociate.save({ validateBeforeSave: false });
-
-  return res.status(200).json(new ApiResponse(200, {}, "Phone number verified successfully"));
+  throw new ApiError(400, "Invalid OTP or OTP has expired");
 });
 
 export const getCurrentUser = asyncHandler(async (req, res) => {

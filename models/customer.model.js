@@ -82,6 +82,23 @@ const customerSchema = new mongoose.Schema({
   passwordResetExpires: { 
     type: Date 
   },
+  passwordResetOTP: { 
+    type: String 
+  },
+  passwordResetOTPExpires: { 
+    type: Date 
+  },
+  // Phone verification
+  phoneOTP: { 
+    type: String 
+  },
+  phoneOTPExpires: { 
+    type: Date 
+  },
+  isPhoneVerified: { 
+    type: Boolean, 
+    default: false 
+  },
   lastLogin: { 
     type: Date 
   },
@@ -166,6 +183,16 @@ customerSchema.methods.generatePasswordResetToken = function () {
   this.passwordResetExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
   
   return resetToken;
+};
+
+// Generate password reset OTP
+customerSchema.methods.generatePasswordResetOTP = function () {
+  const otp = Math.floor(100000 + Math.random() * 900000).toString(); // 6-digit OTP
+  
+  this.passwordResetOTP = otp;
+  this.passwordResetOTPExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
+  
+  return otp;
 };
 
 const Customer = mongoose.model("Customer", customerSchema);

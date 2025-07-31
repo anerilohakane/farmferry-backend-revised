@@ -16,6 +16,7 @@ import {
   login,
   forgotPassword,
   resetPassword,
+  resetPasswordWithOTP,
   sendPhoneVerification,
   verifyPhoneOTP,
   sendDeliveryAssociatePhoneVerification,
@@ -31,22 +32,22 @@ const router = Router();
 
 // ================== PUBLIC ROUTES (No JWT required) ==================
 router.post("/register", registerCustomer);
+router.post("/register/customer", registerCustomer);
 router.post("/login", login);
-router.post("/login/admin", loginAdmin); // <-- Admin login
+router.post("/login/admin", loginAdmin);
 router.post("/login/customer", loginCustomer);
 router.post("/login/supplier", loginSupplier);
-router.post("/login/admin", loginAdmin); // <-- Add this line
-router.post("/login/delivery-associate", loginDeliveryAssociate); // <-- Moved to public section
+router.post("/login/delivery-associate", loginDeliveryAssociate);
 router.post("/refresh-token", refreshAccessToken);
 router.post("/forgot-password", forgotPassword);
 router.post("/reset-password/:token", resetPassword);
+router.post("/reset-password-otp", resetPasswordWithOTP); // New route for customer OTP reset
 // OTP routes
 router.post("/send-phone-verification", sendPhoneVerification);
 router.post("/verify-phone-otp", verifyPhoneOTP);
 router.post("/send-delivery-associate-otp", sendDeliveryAssociatePhoneVerification);
-router.post("/register/admin", registerAdmin); // <-- Move this here to make it public
+router.post("/register/admin", registerAdmin);
 // Secured routes (require authentication)
-router.post("/login/delivery-associate", loginDeliveryAssociate);
 router.use(verifyJWT);
 
 router.post("/logout", logout);
