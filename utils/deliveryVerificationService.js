@@ -44,7 +44,12 @@ export class DeliveryVerificationService {
 
       // Send OTP via SMS only
       if (phone) {
-        await this.sendDeliveryOTPSMS(phone, otp, orderId);
+        try {
+          await this.sendDeliveryOTPSMS(phone, otp, orderId);
+        } catch (smsError) {
+          console.log('⚠️ SMS sending failed, but OTP generation continues');
+          // Continue with the process even if SMS fails
+        }
       }
 
       // Generate QR code for delivery
@@ -226,7 +231,11 @@ export class DeliveryVerificationService {
         errorMessage: error.message,
         errorStack: error.stack
       });
-      throw new Error(`Failed to send OTP via SMS: ${error.message}`);
+      
+      // Don't throw error for SMS failures - just log them
+      // This prevents the entire delivery process from failing due to SMS issues
+      console.log('⚠️ SMS failed but continuing with delivery process');
+      return false;
     }
   }
 

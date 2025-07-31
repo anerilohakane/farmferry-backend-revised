@@ -543,8 +543,8 @@ export const updateDeliveryStatus = asyncHandler(async (req, res) => {
   // Validate status transition
   const validTransitions = {
     assigned: ["picked_up"],
-    picked_up: ["on_the_way"],
-    on_the_way: ["delivered", "failed"],
+    picked_up: ["out_for_delivery"],
+    out_for_delivery: ["delivered", "failed"],
     delivered: [],
     failed: []
   };
@@ -701,7 +701,7 @@ export const selfAssignOrder = asyncHandler(async (req, res) => {
   order.deliveryAssociate = {
     associate: req.user._id,
     assignedAt: new Date(),
-    status: "assigned"
+    status: "picked_up"
   };
   await order.save();
   return res.status(200).json(
@@ -771,37 +771,6 @@ export const getMyCustomerOrders = asyncHandler(async (req, res) => {
 });
 
 
-// In backend - orders controller
-export const getAvailableOrdersNearby = asyncHandler(async (req, res) => {
-  const { longitude, latitude, maxDistance = 10000 } = req.query;
-
-  if (!longitude || !latitude) {
-    throw new ApiError(400, "Longitude and latitude are required");
-  }
-  console.log("User location:", latitude, longitude);
-  const orders = await Order.find({
-    status: "pending",
-    isAssigned: false,
-    "deliveryAddress.location": {      
-        $near: {
-          $geometry: {
-            type: "Point",
-            coordinates: [parseFloat(longitude), parseFloat(latitude)]
-          },
-          $maxDistance: parseInt(maxDistance),
-        }
-      }    
-  })
-  .populate("customer", "firstName lastName")
-  .select("_id createdAt customer deliveryAddress");
-
-  console.log("Found orders:", orders.map(o => o.deliveryAddress.location));
-  return res.status(200).json(
-    new ApiResponse(200, { orders }, "Nearby available orders fetched")
-  );
-});
-
-
 export default {
   createOrder,
   getAllOrders,
@@ -814,5 +783,4 @@ export default {
   getAvailableOrdersForDelivery,
   selfAssignOrder,
   getMyCustomerOrders,
-  getAvailableOrdersNearby
 };

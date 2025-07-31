@@ -10,9 +10,8 @@ import {
   getOrderStatusCounts,
   getAvailableOrdersForDelivery, // NEW
   selfAssignOrder, // NEW
-  getMyCustomerOrders, // NEW
+  getMyCustomerOrders // NEW
   
-  getAvailableOrdersNearby
 } from "../controllers/order.controller.js";
 import { verifyJWT, authorizeRoles } from "../middlewares/auth.middleware.js";
 

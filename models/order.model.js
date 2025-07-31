@@ -1,5 +1,9 @@
 import mongoose from "mongoose";
-import crypto from "crypto";
+//import crypto from "crypto";
+
+import { customAlphabet } from 'nanoid';
+
+const nanoid = customAlphabet('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ', 6);
 
 const orderItemSchema = new mongoose.Schema({
   product: {
@@ -38,7 +42,7 @@ const orderSchema = new mongoose.Schema(
   {
     orderId: {
       type: String,
-      default: () => crypto.randomUUID(),
+      default: () => nanoid(),
       unique: true
     },
     customer: {
@@ -149,17 +153,7 @@ const orderSchema = new mongoose.Schema(
         type: String,
         required: true
       },
-      location: {
-        type: {
-          type: String,
-          enum: ['Point'],
-          default: 'Point'
-        },
-        coordinates: {
-          type: [Number], // [longitude, latitude]
-          required: false
-        }
-      },
+     
       state: {
         type: String,
         required: true
@@ -187,7 +181,7 @@ const orderSchema = new mongoose.Schema(
       },
       status: {
         type: String,
-        enum: ["assigned", "picked_up", "on_the_way", "delivered", "failed"]
+        enum: ["assigned", "picked_up", "out_for_delivery", "delivered", "failed"]
       }
     },
     estimatedDeliveryDate: {
