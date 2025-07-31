@@ -10,7 +10,9 @@ import {
   getOrderStatusCounts,
   getAvailableOrdersForDelivery, // NEW
   selfAssignOrder, // NEW
-  getMyCustomerOrders // NEW
+  getMyCustomerOrders, // NEW
+  generateOrderInvoice, // NEW
+  getOrderInvoice, // NEW
   
 } from "../controllers/order.controller.js";
 import { verifyJWT, authorizeRoles } from "../middlewares/auth.middleware.js";
@@ -60,6 +62,19 @@ router.put(
   "/:id/delivery-status",
   authorizeRoles("deliveryAssociate"),
   updateDeliveryStatus
+);
+
+// Invoice routes
+router.post(
+  "/:id/invoice",
+  authorizeRoles("customer", "supplier", "admin"),
+  generateOrderInvoice
+);
+
+router.get(
+  "/:id/invoice",
+  authorizeRoles("customer", "supplier", "admin"),
+  getOrderInvoice
 );
 
 export default router;

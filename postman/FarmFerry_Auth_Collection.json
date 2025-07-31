@@ -227,7 +227,7 @@
           "response": []
         },
         {
-          "name": "Forgot Password",
+          "name": "Forgot Password - Customer (OTP)",
           "request": {
             "method": "POST",
             "header": [
@@ -238,19 +238,19 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"email\": \"customer@example.com\"\n}"
+              "raw": "{\n    \"email\": \"customer@example.com\",\n    \"role\": \"customer\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/api/v1/auth/forgot-password",
               "host": ["{{baseUrl}}"],
               "path": ["api", "v1", "auth", "forgot-password"]
             },
-            "description": "Request a password reset token"
+            "description": "Request a password reset OTP for customer"
           },
           "response": []
         },
         {
-          "name": "Reset Password",
+          "name": "Forgot Password - Admin (Token)",
           "request": {
             "method": "POST",
             "header": [
@@ -261,14 +261,60 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"token\": \"reset-token-from-email\",\n    \"password\": \"NewPassword123!\"\n}"
+              "raw": "{\n    \"email\": \"admin@example.com\",\n    \"role\": \"admin\"\n}"
             },
             "url": {
-              "raw": "{{baseUrl}}/api/v1/auth/reset-password",
+              "raw": "{{baseUrl}}/api/v1/auth/forgot-password",
               "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "auth", "reset-password"]
+              "path": ["api", "v1", "auth", "forgot-password"]
             },
-            "description": "Reset password using the token received via email"
+            "description": "Request a password reset token for admin"
+          },
+          "response": []
+        },
+        {
+          "name": "Reset Password - Customer (OTP)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"email\": \"customer@example.com\",\n    \"otp\": \"123456\",\n    \"password\": \"NewPassword123!\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/reset-password-otp",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "auth", "reset-password-otp"]
+            },
+            "description": "Reset password using OTP for customer"
+          },
+          "response": []
+        },
+        {
+          "name": "Reset Password - Admin (Token)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"password\": \"NewPassword123!\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/reset-password/reset-token-from-email",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "auth", "reset-password", "reset-token-from-email"]
+            },
+            "description": "Reset password using the token received via email for admin"
           },
           "response": []
         },

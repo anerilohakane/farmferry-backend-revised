@@ -81,8 +81,13 @@ farmferry-backend/
    ```
 
 3. Set up environment variables:
-   - Create a `.env` file based on the `.env.example` template
-   - Fill in your MongoDB URI, JWT secrets, and Cloudinary credentials
+   ```bash
+   npm run setup
+   ```
+   This will create a `.env` file with default values. Please update it with your actual values:
+   - Replace JWT secrets with secure random strings
+   - Update email configuration if you want to send actual emails
+   - Update Cloudinary configuration if you want to use image uploads
 
 4. Start the development server:
    ```bash
@@ -92,6 +97,21 @@ farmferry-backend/
 5. The API will be available at `http://localhost:9000`
 
 ## Environment Variables
+
+### Email Configuration
+For password reset functionality to work, you need to configure email settings:
+
+1. **Gmail Setup** (Recommended for development):
+   - Enable 2-factor authentication on your Gmail account
+   - Generate an App Password: https://myaccount.google.com/apppasswords
+   - Use the App Password in `EMAIL_PASSWORD` (not your regular password)
+
+2. **Other Email Providers**:
+   - Update `EMAIL_SERVICE` to your provider (e.g., 'outlook', 'yahoo')
+   - Use appropriate SMTP settings
+
+3. **Development Mode**:
+   - If email is not configured, the system will log email content to console instead of sending actual emails
 
 ```
 # Server Configuration
@@ -115,6 +135,12 @@ CORS_ORIGIN=http://localhost:3000
 CLOUDINARY_CLOUD_NAME=your_cloud_name
 CLOUDINARY_API_KEY=your_api_key
 CLOUDINARY_API_SECRET=your_api_secret
+
+# Email Configuration (for password reset functionality)
+EMAIL_SERVICE=gmail
+EMAIL_USERNAME=your-email@gmail.com
+EMAIL_PASSWORD=your-app-password
+EMAIL_FROM=FarmFerry <your-email@gmail.com>
 ```
 
 ## Authentication
