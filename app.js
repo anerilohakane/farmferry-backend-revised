@@ -47,7 +47,7 @@ app.use(cors({
 app.use(cors({
   origin: [
     'http://localhost:3000',
-    'https://farm-ferry-super-admin.vercel.app/',
+    'https://farm-ferry-super-admin.vercel.app',
     'https://farm-ferry-admin.vercel.app',
     'http://localhost:3002',
     'http://localhost:3003',
