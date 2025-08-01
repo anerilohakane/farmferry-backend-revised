@@ -12,8 +12,11 @@ import deliveryAssociateRoutes from "./deliveryAssociate.routes.js";
 import notificationRoutes from "./notification.routes.js";
 import advancedDeliveryRoutes from "./advancedDelivery.routes.js";
 import superadminRoutes from "./superadmin.routes.js";
-
+import customerPaymentRoutes from "./customerPayment.routes.js"
 import smsRoutes from "./sms.routes.js";
+import deliveryAssociatePaymentRoutes from "./deliveryAssociatePayment.routes.js";
+import supplierPaymentRoutes from "./supplierPayment.routes.js";
+import refundRoutes from "./refund.routes.js";
 
 const router = Router();
 
@@ -32,6 +35,10 @@ router.use("/notifications", notificationRoutes);
 router.use("/advanced-delivery", advancedDeliveryRoutes);
 router.use("/superadmin", superadminRoutes);
 
+router.use("/payments", customerPaymentRoutes);
+router.use("/delivery-payments", deliveryAssociatePaymentRoutes);
+router.use("/supplier-payments", supplierPaymentRoutes);
+router.use("/refunds", refundRoutes);
 
 router.use("/sms", smsRoutes); 
 

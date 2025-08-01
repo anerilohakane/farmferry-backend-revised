@@ -409,6 +409,32 @@ export const updateOrderStatus = asyncHandler(async (req, res) => {
     }
   };
 
+  // Additional validation for return requests
+  if (status === "returned") {
+    // Only customers can return orders
+    if (req.user.role !== "customer") {
+      throw new ApiError(403, "Only customers can return orders");
+    }
+    
+    // Order must be delivered
+    if (order.status !== "delivered") {
+      throw new ApiError(400, "Only delivered orders can be returned");
+    }
+    
+    // Check if order was delivered within 7 days
+    if (order.deliveredAt) {
+      const daysSinceDelivery = (new Date() - new Date(order.deliveredAt)) / (1000 * 60 * 60 * 24);
+      if (daysSinceDelivery > 7) {
+        throw new ApiError(400, "Return window has expired. Orders can only be returned within 7 days of delivery");
+      }
+    }
+    
+    // Return reason is required
+    if (!note || !note.trim()) {
+      throw new ApiError(400, "Return reason is required");
+    }
+  }
+
   // Debug logging for transition check
   console.log('--- Order Status Transition Debug ---');
   console.log('Current order.status:', order.status);
@@ -424,6 +450,11 @@ export const updateOrderStatus = asyncHandler(async (req, res) => {
   
   // Update order status
   order.status = status;
+  
+  // Set return reason if status is returned
+  if (status === "returned" && note) {
+    order.returnReason = note;
+  }
   
   // Add status history entry
   order.statusHistory.push({
