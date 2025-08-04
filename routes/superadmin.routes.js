@@ -7,13 +7,15 @@ import {
   getSuperAdminProfile,
   updateSuperAdminProfile,
   changeSuperAdminPassword,
-  uploadSuperAdminAvatar
+  uploadSuperAdminAvatar,
+  logoutSuperAdmin
 } from '../controllers/superadmin.controller.js';
 
 const router = express.Router();
 
 // Public routes
 router.post('/login', loginSuperAdmin);
+router.post('/logout', logoutSuperAdmin);
 
 // Protected routes - require authentication
 router.use(verifyJWT);

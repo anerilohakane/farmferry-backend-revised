@@ -160,4 +160,15 @@ export const uploadSuperAdminAvatar = asyncHandler(async (req, res) => {
   return res.status(200).json(
     new ApiResponse(200, { avatar: avatarUrl }, "Avatar uploaded successfully")
   );
+});
+
+// Logout SuperAdmin
+export const logoutSuperAdmin = asyncHandler(async (req, res) => {
+  // Clear cookies
+  res.clearCookie("accessToken");
+  res.clearCookie("refreshToken");
+
+  return res.status(200).json(
+    new ApiResponse(200, {}, "SuperAdmin logged out successfully")
+  );
 }); 
