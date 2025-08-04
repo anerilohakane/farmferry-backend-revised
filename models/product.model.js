@@ -27,6 +27,12 @@ const productSchema = new mongoose.Schema(
       required: [true, "Price is required"], 
       min: [0, "Price cannot be negative"] 
     },
+    gst: {
+      type: Number,
+      default: 0,
+      min: [0, "GST cannot be negative"],
+      max: [100, "GST cannot exceed 100%"]
+    },
     stockQuantity: { 
       type: Number, 
       required: [true, "Stock quantity is required"], 
@@ -70,12 +76,19 @@ const productSchema = new mongoose.Schema(
     },
     offerPercentage: {
       type: Number,
-      default: function () {
-        if (this.price && this.discountedPrice) {
-          return ((this.price - this.discountedPrice) / this.price) * 100;
-        }
-        return 0;
-      },
+      default: 0,
+      min: [0, "Offer percentage cannot be negative"],
+      max: [100, "Offer percentage cannot exceed 100"]
+    },
+    offerStartDate: {
+      type: Date
+    },
+    offerEndDate: {
+      type: Date
+    },
+    hasActiveOffer: {
+      type: Boolean,
+      default: false
     },
     
     // Variations
@@ -143,13 +156,23 @@ const productSchema = new mongoose.Schema(
   }
 );
 
-// Middleware to auto-calculate offer percentage before saving
+// Middleware to auto-calculate offer percentage and check offer status before saving
 productSchema.pre("save", function (next) {
-  if (this.price > 0 && this.discountedPrice) {
+  // Auto-calculate offer percentage if not manually set
+  if (this.price > 0 && this.discountedPrice && !this.isModified('offerPercentage')) {
     this.offerPercentage = ((this.price - this.discountedPrice) / this.price) * 100;
-  } else {
-    this.offerPercentage = 0;
   }
+  
+  // Check if offer is currently active
+  if (this.offerStartDate && this.offerEndDate) {
+    const now = new Date();
+    this.hasActiveOffer = now >= this.offerStartDate && now <= this.offerEndDate;
+  } else if (this.offerPercentage > 0) {
+    this.hasActiveOffer = true;
+  } else {
+    this.hasActiveOffer = false;
+  }
+  
   next();
 });
 

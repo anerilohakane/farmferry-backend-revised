@@ -7,7 +7,8 @@ import {
   deleteProductImage,
   deleteProduct,
   getMyProducts,
-  getProductsBySupplier
+  getProductsBySupplier,
+  addOffer
 } from "../controllers/product.controller.js";
 import { verifyJWT, authorizeRoles } from "../middlewares/auth.middleware.js";
 import { upload } from "../middlewares/multer.middleware.js";
@@ -60,6 +61,13 @@ router.get(
   '/supplier/:supplierId',
   authorizeRoles('admin', 'supplier'),
   getProductsBySupplier
+);
+
+// Add offer to product
+router.post(
+  '/:id/offer',
+  authorizeRoles('supplier'),
+  addOffer
 );
 
 export default router;

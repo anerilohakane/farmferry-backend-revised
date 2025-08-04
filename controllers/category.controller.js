@@ -294,7 +294,7 @@ export const updateCategory = asyncHandler(async (req, res) => {
       await deleteFromCloudinary(category.image.publicId);
     }
     // Upload new image
-    const uploadResult = await uploadToCloudinary(mainImageFile, "categories");
+    const uploadResult = await uploadToCloudinary(req.file, "categories");
     console.log('uploadResult:', uploadResult);
     if (!uploadResult) {
       throw new ApiError(500, "Error uploading category image");

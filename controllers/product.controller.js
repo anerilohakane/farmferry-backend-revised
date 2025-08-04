@@ -13,6 +13,7 @@ export const createProduct = asyncHandler(async (req, res) => {
     name, 
     description, 
     price, 
+    gst,
     stockQuantity, 
     categoryId, 
     unit, 
@@ -42,6 +43,7 @@ export const createProduct = asyncHandler(async (req, res) => {
     name,
     description,
     price: Number(price),
+    gst: gst ? Number(gst) : 0,
     stockQuantity: Number(stockQuantity),
     unit: unit || "kg",
     images: []
@@ -238,6 +240,7 @@ export const updateProduct = asyncHandler(async (req, res) => {
     name, 
     description, 
     price, 
+    gst,
     stockQuantity, 
     categoryId, 
     unit, 
@@ -274,6 +277,7 @@ export const updateProduct = asyncHandler(async (req, res) => {
   if (name) product.name = name;
   if (description) product.description = description;
   if (price) product.price = Number(price);
+  if (gst !== undefined) product.gst = Number(gst);
   if (stockQuantity) product.stockQuantity = Number(stockQuantity);
   if (categoryId) product.categoryId = categoryId;
   if (unit) product.unit = unit;
@@ -477,3 +481,89 @@ export const getProductsBySupplier = asyncHandler(async (req, res) => {
     )
   );
 });
+
+// Add offer to product
+export const addOffer = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { offerPercentage, offerStartDate, offerEndDate } = req.body;
+  
+  // Validate required fields
+  if (!offerPercentage) {
+    throw new ApiError(400, "Offer percentage is required");
+  }
+  
+  // Validate offer percentage range (0-100)
+  const percentage = Number(offerPercentage);
+  if (isNaN(percentage) || percentage < 0 || percentage > 100) {
+    throw new ApiError(400, "Offer percentage must be between 0 and 100");
+  }
+  
+  // Find product
+  const product = await Product.findById(id);
+  
+  if (!product) {
+    throw new ApiError(404, "Product not found");
+  }
+  
+  // Check if user is the supplier of this product
+  if (product.supplierId.toString() !== req.user._id.toString()) {
+    throw new ApiError(403, "You are not authorized to add offers to this product");
+  }
+  
+  // Validate dates if provided
+  let startDate = null;
+  let endDate = null;
+  
+  if (offerStartDate) {
+    startDate = new Date(offerStartDate);
+    if (isNaN(startDate.getTime())) {
+      throw new ApiError(400, "Invalid offer start date");
+    }
+  }
+  
+  if (offerEndDate) {
+    endDate = new Date(offerEndDate);
+    if (isNaN(endDate.getTime())) {
+      throw new ApiError(400, "Invalid offer end date");
+    }
+  }
+  
+  // Check if end date is after start date
+  if (startDate && endDate && endDate <= startDate) {
+    throw new ApiError(400, "Offer end date must be after start date");
+  }
+  
+  // Calculate discounted price
+  const discountedPrice = product.price - (product.price * percentage / 100);
+  
+  // Update product with offer details
+  product.offerPercentage = percentage;
+  product.discountedPrice = Math.round(discountedPrice * 100) / 100; // Round to 2 decimal places
+  product.offerStartDate = startDate;
+  product.offerEndDate = endDate;
+  product.hasActiveOffer = true;
+  
+  // Save product
+  await product.save();
+  
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      { 
+        product: {
+          _id: product._id,
+          name: product.name,
+          originalPrice: product.price,
+          offerPercentage: product.offerPercentage,
+          discountedPrice: product.discountedPrice,
+          offerStartDate: product.offerStartDate,
+          offerEndDate: product.offerEndDate,
+          hasActiveOffer: product.hasActiveOffer
+        }
+      },
+      "Offer added successfully"
+    )
+  );
+});
+
+
