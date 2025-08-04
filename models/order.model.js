@@ -153,7 +153,7 @@ const orderSchema = new mongoose.Schema(
         type: String,
         required: true
       },
-     
+
       state: {
         type: String,
         required: true
@@ -209,6 +209,23 @@ const orderSchema = new mongoose.Schema(
     },
     returnReason: {
       type: String
+    },
+    refundStatus: {
+      type: String,
+      enum: ["pending", "processing", "refunded", "failed"],
+      default: function () {
+        return this.status === "returned" ? "pending" : undefined;
+      }
+    },
+    refundAmount: {
+      type: Number,
+      min: [0, "Refund amount cannot be negative"]
+    },
+    refundTransactionId: {
+      type: String
+    },
+    refundProcessedAt: {
+      type: Date
     },
     // QR/OTP Delivery Verification
     qrCode: {
