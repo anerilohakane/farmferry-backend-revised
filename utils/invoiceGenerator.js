@@ -99,7 +99,7 @@ PRICE BREAKDOWN:
 ----------------
 Subtotal: ₹${order.subtotal}
 Discount: ₹${order.discountAmount}
-Taxes: ₹${order.taxes}
+GST: ₹${order.gst}
 Delivery Charge: ₹${order.deliveryCharge}
 ===============================================
 TOTAL AMOUNT: ₹${order.totalAmount}

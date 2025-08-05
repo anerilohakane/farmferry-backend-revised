@@ -1,6 +1,7 @@
 import Order from "../models/order.model.js";
 import Product from "../models/product.model.js";
 import Cart from "../models/cart.model.js";
+import Category from "../models/category.model.js";
 import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
@@ -106,8 +107,16 @@ export const createOrder = asyncHandler(async (req, res) => {
     // Calculate delivery charge
     const deliveryCharge = isExpressDelivery ? 50 : 20; // Example values
     
-    // Calculate taxes (example: 5% of subtotal)
-    const taxes = Math.round(subtotal * 0.05);
+    // Calculate GST based on product GST rates
+    let totalGST = 0;
+    for (const item of supplierItems) {
+      const product = await Product.findById(item.product);
+      if (product && product.gst) {
+        const itemPrice = item.discountedPrice || item.price;
+        const itemGST = (itemPrice * product.gst / 100) * item.quantity;
+        totalGST += itemGST;
+      }
+    }
     
     // Calculate discount amount (if coupon applied)
     let discountAmount = 0;
@@ -117,8 +126,44 @@ export const createOrder = asyncHandler(async (req, res) => {
       discountAmount = Math.round(subtotal * 0.1); // 10% discount
     }
     
-    // Calculate total amount
-    const totalAmount = subtotal - discountAmount + taxes + deliveryCharge;
+    // Calculate platform fee (default value from schema)
+    const platformFee = 2; // Default platform fee as per schema
+    
+    // Calculate handling fee based on product categories
+    let totalHandlingFee = 0;
+    for (const item of supplierItems) {
+      const product = await Product.findById(item.product).populate({
+        path: 'categoryId',
+        select: 'name handlingFee parent'
+      });
+      console.log('Product:', product ? product.name : 'Not found');
+      console.log('Product categoryId:', product ? product.categoryId : 'No category');
+      
+      if (product && product.categoryId) {
+        console.log('Category details:', {
+          categoryId: product.categoryId._id,
+          categoryName: product.categoryId.name,
+          parent: product.categoryId.parent,
+          handlingFee: product.categoryId.handlingFee
+        });
+        
+        // Only apply handling fee if category has a parent (is a subcategory)
+        if (product.categoryId.parent && product.categoryId.handlingFee) {
+          const itemHandlingFee = product.categoryId.handlingFee;
+          totalHandlingFee += itemHandlingFee;
+          console.log(`Handling fee for ${product.name} (subcategory): ${product.categoryId.handlingFee} = ${itemHandlingFee}`);
+        } else if (!product.categoryId.parent) {
+          console.log(`No handling fee applied for ${product.name} (main category)`);
+        } else {
+          console.log(`No handling fee set for subcategory: ${product.categoryId.name}`);
+        }
+      } else {
+        console.log('Product or category not found');
+      }
+    }
+    console.log('Total handling fee:', totalHandlingFee);
+    // Calculate total amount including GST, platform fee and handling fee
+    const totalAmount = subtotal - discountAmount + totalGST + deliveryCharge + platformFee + totalHandlingFee;
     
     // Create order
     const order = await Order.create({
@@ -128,7 +173,9 @@ export const createOrder = asyncHandler(async (req, res) => {
       subtotal,
       couponCode,
       discountAmount,
-      taxes,
+      gst: totalGST,
+      platformFee,
+      handlingFee: totalHandlingFee,
       deliveryCharge,
       totalAmount,
       paymentMethod,
@@ -1104,9 +1151,19 @@ const generateOrderSummaryHTML = (order, customer) => {
               <td style="padding: 8px 0; text-align: right;">${formatCurrency(order.deliveryCharge)}</td>
             </tr>
             <tr>
-              <td style="padding: 8px 0; font-weight: 600;">Taxes:</td>
-              <td style="padding: 8px 0; text-align: right;">${formatCurrency(order.taxes)}</td>
+              <td style="padding: 8px 0; font-weight: 600;">GST:</td>
+              <td style="padding: 8px 0; text-align: right;">${formatCurrency(order.gst)}</td>
             </tr>
+            <tr>
+              <td style="padding: 8px 0; font-weight: 600;">Platform Fee:</td>
+              <td style="padding: 8px 0; text-align: right;">${formatCurrency(order.platformFee)}</td>
+            </tr>
+            ${order.handlingFee > 0 ? `
+            <tr>
+              <td style="padding: 8px 0; font-weight: 600;">Handling Fee:</td>
+              <td style="padding: 8px 0; text-align: right;">${formatCurrency(order.handlingFee)}</td>
+            </tr>
+            ` : ''}
             <tr style="border-top: 2px solid #4CAF50; font-size: 18px;">
               <td style="padding: 12px 0; font-weight: 700;">Total Amount:</td>
               <td style="padding: 12px 0; text-align: right; font-weight: 700;">${formatCurrency(order.totalAmount)}</td>
@@ -1261,9 +1318,19 @@ const generateSupplierOrderHTML = (order, supplier) => {
               <td style="padding: 8px 0; text-align: right;">${formatCurrency(order.deliveryCharge)}</td>
             </tr>
             <tr>
-              <td style="padding: 8px 0; font-weight: 600;">Taxes:</td>
-              <td style="padding: 8px 0; text-align: right;">${formatCurrency(order.taxes)}</td>
+              <td style="padding: 8px 0; font-weight: 600;">GST:</td>
+              <td style="padding: 8px 0; text-align: right;">${formatCurrency(order.gst)}</td>
             </tr>
+            <tr>
+              <td style="padding: 8px 0; font-weight: 600;">Platform Fee:</td>
+              <td style="padding: 8px 0; text-align: right;">${formatCurrency(order.platformFee)}</td>
+            </tr>
+            ${order.handlingFee > 0 ? `
+            <tr>
+              <td style="padding: 8px 0; font-weight: 600;">Handling Fee:</td>
+              <td style="padding: 8px 0; text-align: right;">${formatCurrency(order.handlingFee)}</td>
+            </tr>
+            ` : ''}
             <tr style="border-top: 2px solid #FF9800; font-size: 18px;">
               <td style="padding: 12px 0; font-weight: 700;">Total Amount:</td>
               <td style="padding: 12px 0; text-align: right; font-weight: 700;">${formatCurrency(order.totalAmount)}</td>

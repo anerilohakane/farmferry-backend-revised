@@ -72,10 +72,18 @@ const orderSchema = new mongoose.Schema(
       type: Number,
       default: 0
     },
-    taxes: {
+    gst: {
       type: Number,
       default: 0
     },
+    platformFee: {
+      type: Number,
+      default: 2
+    },
+    handlingFee: {
+      type: Number,
+      default: 0
+    },    
     deliveryCharge: {
       type: Number,
       default: 0
@@ -83,7 +91,7 @@ const orderSchema = new mongoose.Schema(
     totalAmount: {
       type: Number,
       default: function () {
-        return this.subtotal - this.discountAmount + this.taxes + this.deliveryCharge;
+        return this.subtotal - this.discountAmount + this.gst + this.deliveryCharge + this.platformFee + this.handlingFee;
       }
     },
 
@@ -153,7 +161,7 @@ const orderSchema = new mongoose.Schema(
         type: String,
         required: true
       },
-     
+
       state: {
         type: String,
         required: true
@@ -232,7 +240,7 @@ orderSchema.pre("save", function (next) {
   this.subtotal = this.items.reduce((sum, item) => sum + item.totalPrice, 0);
 
   // Calculate final total
-  this.totalAmount = this.subtotal - this.discountAmount + this.taxes + this.deliveryCharge;
+  this.totalAmount = this.subtotal - this.discountAmount + this.gst + this.deliveryCharge + this.platformFee + this.handlingFee;
 
   // Add status to history if it's a new order or status changed
   const lastStatus = this.statusHistory.length > 0
