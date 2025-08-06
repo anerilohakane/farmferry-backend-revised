@@ -21,6 +21,17 @@ const categorySchema = new mongoose.Schema(
       ref: "Category",
       default: null
     },
+    handlingFee: {
+      type: Number,
+      default: 0,
+      min: [0, "Handling fee cannot be negative"],
+      validate: {
+        validator: function(value) {
+          return value >= 0;
+        },
+        message: "Handling fee must be a non-negative number"
+      }
+    },
     isActive: {
       type: Boolean,
       default: true
