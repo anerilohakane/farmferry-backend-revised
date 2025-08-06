@@ -20,7 +20,7 @@ export const getCart = asyncHandler(async (req, res) => {
   // Populate product details
   await cart.populate({
     path: "items.product",
-    select: "name price discountedPrice images stockQuantity unit supplierId"
+    select: "name price gst discountedPrice images stockQuantity unit supplierId"
   });
   
   // Group items by supplier
@@ -154,7 +154,7 @@ export const addItemToCart = asyncHandler(async (req, res) => {
   // Populate product details
   await cart.populate({
     path: "items.product",
-    select: "name price discountedPrice images stockQuantity unit supplierId"
+    select: "name price gst discountedPrice images stockQuantity unit supplierId"
   });
   
   return res.status(200).json(
@@ -232,7 +232,7 @@ export const updateCartItemQuantity = asyncHandler(async (req, res) => {
   // Populate product details
   await cart.populate({
     path: "items.product",
-    select: "name price discountedPrice images stockQuantity unit supplierId"
+    select: "name price gst discountedPrice images stockQuantity unit supplierId"
   });
   
   return res.status(200).json(
