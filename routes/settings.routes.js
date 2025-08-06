@@ -5,8 +5,7 @@ import {
   getDeliveryCharges,
   resetSettings
 } from "../controllers/settings.controller.js";
-import { verifyJWT } from "../middlewares/auth.middleware.js";
-import { isAdmin } from "../middlewares/auth.middleware.js";
+import { verifyJWT, authorizeRoles } from "../middlewares/auth.middleware.js";
 
 const router = Router();
 
@@ -15,7 +14,7 @@ router.get("/", getSettings);
 router.get("/delivery-charges", getDeliveryCharges);
 
 // Admin only routes
-router.put("/", verifyJWT, isAdmin, updateSettings);
-router.post("/reset", verifyJWT, isAdmin, resetSettings);
+router.put("/", verifyJWT, authorizeRoles("admin"), updateSettings);
+router.post("/reset", verifyJWT, authorizeRoles("admin"), resetSettings);
 
 export default router; 
