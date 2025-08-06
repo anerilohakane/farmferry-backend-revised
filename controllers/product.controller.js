@@ -121,6 +121,7 @@ export const getAllProducts = asyncHandler(async (req, res) => {
     inStock,
     featured,
     trending,
+    hasActiveOffer,
     sort = "createdAt", 
     order = "desc", 
     page = 1, 
@@ -164,6 +165,12 @@ export const getAllProducts = asyncHandler(async (req, res) => {
   // Filter by trending
   if (trending === "true") {
     queryOptions.isTrending = true;
+  }
+  
+  // Filter by active offers
+  if (hasActiveOffer === "true") {
+    queryOptions.hasActiveOffer = true;
+    queryOptions.offerPercentage = { $gt: 0 }; // Ensure offer percentage is greater than 0
   }
   
   // Calculate pagination
