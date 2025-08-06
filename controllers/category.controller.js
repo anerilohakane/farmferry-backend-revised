@@ -358,6 +358,51 @@ export const deleteCategory = asyncHandler(async (req, res) => {
   );
 });
 
+// Add handling fee to category
+export const addHandlingFee = asyncHandler(async (req, res) => {
+  const { categoryId, handlingFee } = req.body;
+
+  // Validate required fields
+  if (!categoryId) {
+    throw new ApiError(400, "Category ID is required");
+  }
+
+  if (handlingFee === undefined || handlingFee === null) {
+    throw new ApiError(400, "Handling fee is required");
+  }
+
+  // Validate handling fee is a valid number and non-negative
+  const fee = parseFloat(handlingFee);
+  if (isNaN(fee) || fee < 0) {
+    throw new ApiError(400, "Handling fee must be a valid non-negative number");
+  }
+
+  // Find category
+  const category = await Category.findById(categoryId);
+
+  if (!category) {
+    throw new ApiError(404, "Category not found");
+  }
+
+  // Update handling fee
+  category.handlingFee = fee;
+  await category.save();
+
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      { 
+        category: {
+          _id: category._id,
+          name: category.name,
+          handlingFee: category.handlingFee
+        }
+      },
+      "Handling fee added successfully"
+    )
+  );
+});
+
 // Get category tree
 export const getCategoryTree = asyncHandler(async (req, res) => {
   // Get all categories

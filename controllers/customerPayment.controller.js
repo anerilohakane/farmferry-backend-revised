@@ -139,7 +139,7 @@ export const getPaymentRecordById = async (req, res) => {
       amount: order.totalAmount,
       subtotal: order.subtotal,
       discountAmount: order.discountAmount,
-      taxes: order.taxes,
+      gst: order.gst,
       deliveryCharge: order.deliveryCharge,
       method: formatPaymentMethod(order.paymentMethod),
       status: order.paymentStatus,
