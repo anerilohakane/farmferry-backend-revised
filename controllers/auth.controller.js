@@ -8,7 +8,7 @@ import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import sendEmail from "../utils/email.js";
-import sendSMS from "../utils/sms.js";
+import smsUtils from "../utils/sms.js";
 
 // Helper function to generate tokens and save to cookies
 const generateTokensAndSetCookies = async (user, res) => {
@@ -87,8 +87,8 @@ export const registerCustomer = asyncHandler(async (req, res) => {
     throw new ApiError(500, "Something went wrong while registering the customer");
   }
   
-  // Generate tokens
-  const { accessToken, refreshToken } = await generateTokensAndSetCookies(customer, res);
+  // Don't generate tokens until phone verification is complete
+  // const { accessToken, refreshToken } = await generateTokensAndSetCookies(customer, res);
   
   // Send welcome email
   try {
@@ -109,7 +109,7 @@ export const registerCustomer = asyncHandler(async (req, res) => {
   // Send phone verification OTP
   let smsSent = false;
   try {
-    await sendSMS(
+    await smsUtils.sendSMS(
       createdCustomer.phone,
       `Your FarmFerry verification OTP is: ${phoneOTP}. Valid for 10 minutes.`
     );
@@ -119,11 +119,7 @@ export const registerCustomer = asyncHandler(async (req, res) => {
     // Don't fail registration if SMS fails, but log it
   }
   
-  // For now, always set requiresPhoneVerification to false to redirect to login
-  // TODO: Enable phone verification when SMS is properly configured
-  smsSent = false;
-  
-  // Send response
+  // Send response - require phone verification before login
   return res.status(201).json(
     new ApiResponse(
       201,
@@ -136,13 +132,11 @@ export const registerCustomer = asyncHandler(async (req, res) => {
           phone: createdCustomer.phone,
           isPhoneVerified: createdCustomer.isPhoneVerified
         },
-        accessToken,
-        refreshToken,
-        requiresPhoneVerification: smsSent
+        requiresPhoneVerification: true // Always require phone verification
       },
       smsSent 
         ? "Customer registered successfully. Please verify your phone number with the OTP sent to your mobile."
-        : "Customer registered successfully! You can log in now."
+        : "Customer registered successfully. Please verify your phone number to continue."
     )
   );
 });
@@ -166,6 +160,45 @@ export const loginCustomer = asyncHandler(async (req, res) => {
   const isPasswordValid = await customer.isPasswordCorrect(password);
   if (!isPasswordValid) {
     throw new ApiError(401, "Invalid credentials");
+  }
+  
+  // Check if phone is verified
+  if (!customer.isPhoneVerified) {
+    // Generate new OTP if needed
+    if (!customer.phoneOTP || customer.phoneOTPExpires < Date.now()) {
+      const phoneOTP = Math.floor(100000 + Math.random() * 900000).toString();
+      customer.phoneOTP = phoneOTP;
+      customer.phoneOTPExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
+      await customer.save({ validateBeforeSave: false });
+      
+      // Try to send SMS
+      try {
+        await smsUtils.sendSMS(
+          customer.phone,
+          `Your FarmFerry verification OTP is: ${phoneOTP}. Valid for 10 minutes.`
+        );
+      } catch (error) {
+        console.error("Error sending verification SMS:", error);
+      }
+    }
+    
+    return res.status(403).json(
+      new ApiResponse(
+        403,
+        {
+          customer: {
+            _id: customer._id,
+            firstName: customer.firstName,
+            lastName: customer.lastName,
+            email: customer.email,
+            phone: customer.phone,
+            isPhoneVerified: customer.isPhoneVerified
+          },
+          requiresPhoneVerification: true
+        },
+        "Phone verification required. Please verify your phone number with the OTP sent to your mobile."
+      )
+    );
   }
   
   // Update last login
@@ -676,7 +709,7 @@ export const sendPhoneVerification = asyncHandler(async (req, res) => {
     await customer.save({ validateBeforeSave: false });
 
     try {
-      await sendSMS(
+      await smsUtils.sendSMS(
         customer.phone,
         `Your FarmFerry verification OTP is: ${phoneOTP}. Valid for 10 minutes.`
       );
@@ -842,7 +875,7 @@ export const sendDeliveryAssociatePhoneVerification = asyncHandler(async (req, r
   await deliveryAssociate.save({ validateBeforeSave: false });
 
   try {
-    await sendSMS(
+    await smsUtils.sendSMS(
       deliveryAssociate.phone,
       `Your FarmFerry verification code is: ${otp}`
     );
