@@ -17,6 +17,7 @@ const router = Router();
 // Public routes
 router.get("/", getAllCategories);
 router.get("/tree", getCategoryTree);
+router.get("/:id", getCategoryById);
 
 // Protected routes
 router.use(verifyJWT);
@@ -35,9 +36,6 @@ router.post(
   upload.single("image"),
   createCategory
 );
-
-// Parameterized routes last
-router.get("/:id", getCategoryById);
 
 router.put(
   "/:id",
