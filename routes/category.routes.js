@@ -6,7 +6,8 @@ import {
   getCategoryTree,
   updateCategory,
   deleteCategory,
-  addHandlingFee
+  addHandlingFee,
+  getCategoryHandlingFee
 } from "../controllers/category.controller.js";
 import { verifyJWT, authorizeRoles } from "../middlewares/auth.middleware.js";
 import { upload } from "../middlewares/multer.middleware.js";
@@ -26,6 +27,7 @@ router.post(
   authorizeRoles("admin"),
   addHandlingFee
 );
+router.get('/:categoryId/handling-fee', getCategoryHandlingFee);
 
 router.post(
   "/",

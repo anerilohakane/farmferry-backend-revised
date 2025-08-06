@@ -403,6 +403,37 @@ export const addHandlingFee = asyncHandler(async (req, res) => {
   );
 });
 
+// Get handling fee for a single category
+export const getCategoryHandlingFee = asyncHandler(async (req, res) => {
+  const { categoryId } = req.params; // Get categoryId from URL params
+
+  // Validate required field
+  if (!categoryId) {
+    throw new ApiError(400, "Category ID is required");
+  }
+
+  // Find the category
+  const category = await Category.findById(categoryId).select('_id name handlingFee');
+
+  if (!category) {
+    throw new ApiError(404, "Category not found");
+  }
+
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      { 
+        category: {
+          _id: category._id,
+          name: category.name,
+          handlingFee: category.handlingFee || 0
+        }
+      },
+      "Handling fee fetched successfully"
+    )
+  );
+});
+
 // Get category tree
 export const getCategoryTree = asyncHandler(async (req, res) => {
   // Get all categories
@@ -443,3 +474,4 @@ export const getCategoryTree = asyncHandler(async (req, res) => {
     )
   );
 });
+
