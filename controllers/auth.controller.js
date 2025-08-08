@@ -39,6 +39,108 @@ const generateTokensAndSetCookies = async (user, res) => {
 };
 
 // Customer Registration
+// export const registerCustomer = asyncHandler(async (req, res) => {
+//   const { name, email, password, phone } = req.body;
+  
+//   // Validate required fields
+//   if (!name || !email || !password || !phone) {
+//     throw new ApiError(400, "Name, email, phone, and password are required");
+//   }
+  
+//   // Check if email already exists
+//   const existingCustomer = await Customer.findOne({ email: email.toLowerCase() });
+//   if (existingCustomer) {
+//     throw new ApiError(409, "Email is already registered");
+//   }
+  
+//   // Check if phone already exists
+//   const existingPhone = await Customer.findOne({ phone });
+//   if (existingPhone) {
+//     throw new ApiError(409, "Phone number is already registered");
+//   }
+  
+//   // Split name into firstName and lastName
+//   const nameParts = name.trim().split(' ');
+//   const firstName = nameParts[0];
+//   const lastName = nameParts.slice(1).join(' ') || '';
+  
+//   // Generate phone verification OTP
+//   const phoneOTP = Math.floor(100000 + Math.random() * 900000).toString();
+  
+//   // Create new customer with phone verification pending
+//   const customer = await Customer.create({
+//     firstName,
+//     lastName,
+//     email: email.toLowerCase(),
+//     password,
+//     phone,
+//     phoneOTP,
+//     phoneOTPExpires: Date.now() + 10 * 60 * 1000, // 10 minutes
+//     isPhoneVerified: false,
+//     lastLogin: new Date()
+//   });
+  
+//   // Remove sensitive fields from response
+//   const createdCustomer = await Customer.findById(customer._id).select("-password -passwordResetToken -passwordResetExpires");
+  
+//   if (!createdCustomer) {
+//     throw new ApiError(500, "Something went wrong while registering the customer");
+//   }
+  
+//   // Don't generate tokens until phone verification is complete
+//   // const { accessToken, refreshToken } = await generateTokensAndSetCookies(customer, res);
+  
+//   // Send welcome email
+//   try {
+//     await sendEmail({
+//       to: createdCustomer.email,
+//       subject: "Welcome to FarmFerry!",
+//       html: `
+//         <h1>Welcome, ${createdCustomer.firstName}!</h1>
+//         <p>Thank you for registering with FarmFerry. We're excited to have you.</p>
+//         <p>You can now browse our wide range of fresh products directly from local suppliers.</p>
+//         <a href="${process.env.FRONTEND_URL}" style="display: inline-block; padding: 10px 20px; background-color: #28a745; color: #fff; text-decoration: none; border-radius: 5px;">Shop Now</a>
+//       `,
+//     });
+//   } catch (error) {
+//     console.error("Error sending welcome email:", error);
+//   }
+
+//   // Send phone verification OTP
+//   let smsSent = false;
+//   try {
+//     await smsUtils.sendSMS(
+//       createdCustomer.phone,
+//       `Your FarmFerry verification OTP is: ${phoneOTP}. Valid for 10 minutes.`
+//     );
+//     smsSent = true;
+//   } catch (error) {
+//     console.error("Error sending phone verification OTP:", error);
+//     // Don't fail registration if SMS fails, but log it
+//   }
+  
+//   // Send response - require phone verification before login
+//   return res.status(201).json(
+//     new ApiResponse(
+//       201,
+//       {
+//         customer: {
+//           _id: createdCustomer._id,
+//           firstName: createdCustomer.firstName,
+//           lastName: createdCustomer.lastName,
+//           email: createdCustomer.email,
+//           phone: createdCustomer.phone,
+//           isPhoneVerified: createdCustomer.isPhoneVerified
+//         },
+//         requiresPhoneVerification: true // Always require phone verification
+//       },
+//       smsSent 
+//         ? "Customer registered successfully. Please verify your phone number with the OTP sent to your mobile."
+//         : "Customer registered successfully. Please verify your phone number to continue."
+//     )
+//   );
+// });
+
 export const registerCustomer = asyncHandler(async (req, res) => {
   const { name, email, password, phone } = req.body;
   
@@ -64,31 +166,28 @@ export const registerCustomer = asyncHandler(async (req, res) => {
   const firstName = nameParts[0];
   const lastName = nameParts.slice(1).join(' ') || '';
   
-  // Generate phone verification OTP
-  const phoneOTP = Math.floor(100000 + Math.random() * 900000).toString();
-  
-  // Create new customer with phone verification pending
+  // Create new customer (phone is auto-verified now)
   const customer = await Customer.create({
     firstName,
     lastName,
     email: email.toLowerCase(),
     password,
     phone,
-    phoneOTP,
-    phoneOTPExpires: Date.now() + 10 * 60 * 1000, // 10 minutes
-    isPhoneVerified: false,
+    isPhoneVerified: true,
     lastLogin: new Date()
   });
   
   // Remove sensitive fields from response
-  const createdCustomer = await Customer.findById(customer._id).select("-password -passwordResetToken -passwordResetExpires");
+  const createdCustomer = await Customer.findById(customer._id).select(
+    "-password -passwordResetToken -passwordResetExpires"
+  );
   
   if (!createdCustomer) {
     throw new ApiError(500, "Something went wrong while registering the customer");
   }
   
-  // Don't generate tokens until phone verification is complete
-  // const { accessToken, refreshToken } = await generateTokensAndSetCookies(customer, res);
+  // Generate tokens immediately after registration
+  const { accessToken, refreshToken } = await generateTokensAndSetCookies(customer, res);
   
   // Send welcome email
   try {
@@ -106,20 +205,7 @@ export const registerCustomer = asyncHandler(async (req, res) => {
     console.error("Error sending welcome email:", error);
   }
 
-  // Send phone verification OTP
-  let smsSent = false;
-  try {
-    await smsUtils.sendSMS(
-      createdCustomer.phone,
-      `Your FarmFerry verification OTP is: ${phoneOTP}. Valid for 10 minutes.`
-    );
-    smsSent = true;
-  } catch (error) {
-    console.error("Error sending phone verification OTP:", error);
-    // Don't fail registration if SMS fails, but log it
-  }
-  
-  // Send response - require phone verification before login
+  // Send response
   return res.status(201).json(
     new ApiResponse(
       201,
@@ -132,14 +218,14 @@ export const registerCustomer = asyncHandler(async (req, res) => {
           phone: createdCustomer.phone,
           isPhoneVerified: createdCustomer.isPhoneVerified
         },
-        requiresPhoneVerification: true // Always require phone verification
+        accessToken,
+        refreshToken
       },
-      smsSent 
-        ? "Customer registered successfully. Please verify your phone number with the OTP sent to your mobile."
-        : "Customer registered successfully. Please verify your phone number to continue."
+      "Customer registered successfully."
     )
   );
 });
+
 
 // Customer Login
 export const loginCustomer = asyncHandler(async (req, res) => {
