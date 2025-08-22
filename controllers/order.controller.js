@@ -107,8 +107,11 @@ export const createOrder = asyncHandler(async (req, res) => {
     // Calculate subtotal
     const subtotal = supplierItems.reduce((sum, item) => sum + item.totalPrice, 0);
     
-    // Calculate delivery charge
-    const deliveryCharge = isExpressDelivery ? 50 : 20; // Example values
+    // Calculate delivery charge - waive if order is above ₹500
+    let deliveryCharge = 0;
+    if (subtotal < 500) {
+      deliveryCharge = isExpressDelivery ? 50 : 20; // Apply delivery charge only for orders below ₹500
+    }
     
     // Calculate GST based on product GST rates
     let totalGST = 0;
