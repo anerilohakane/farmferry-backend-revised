@@ -13,6 +13,7 @@ import {
   getMyCustomerOrders, // NEW
   generateOrderInvoice, // NEW
   getOrderInvoice, // NEW
+  updateOrderPaymentStatus, // NEW
   
 } from "../controllers/order.controller.js";
 import { verifyJWT, authorizeRoles } from "../middlewares/auth.middleware.js";
@@ -49,6 +50,13 @@ router.put(
   "/:id/status",
   authorizeRoles("supplier", "admin", "customer", "deliveryAssociate"),
   updateOrderStatus
+);
+
+// Customer and admin routes for payment status
+router.put(
+  "/:id/payment-status",
+  authorizeRoles("customer", "admin"),
+  updateOrderPaymentStatus
 );
 
 router.put(

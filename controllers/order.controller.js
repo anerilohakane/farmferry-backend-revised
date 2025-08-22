@@ -22,7 +22,10 @@ export const createOrder = asyncHandler(async (req, res) => {
     paymentMethod, 
     couponCode,
     isExpressDelivery,
-    notes
+    notes,
+    paymentStatus,
+    transactionId,
+    paymentDetails
   } = req.body;
   
   console.log('Order creation request body:', req.body);
@@ -179,6 +182,9 @@ export const createOrder = asyncHandler(async (req, res) => {
       deliveryCharge,
       totalAmount,
       paymentMethod,
+      paymentStatus: paymentStatus || "pending",
+      transactionId: transactionId || null,
+      paymentDetails: paymentDetails || null,
       status: "pending",
       isExpressDelivery: isExpressDelivery || false,
       deliveryAddress,
@@ -966,6 +972,64 @@ export const generateOrderInvoice = asyncHandler(async (req, res) => {
   }
 });
 
+// Update payment status for an order
+export const updateOrderPaymentStatus = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { paymentStatus, transactionId, paymentDetails } = req.body;
+  
+  if (!paymentStatus) {
+    throw new ApiError(400, "Payment status is required");
+  }
+  
+  // Validate payment status
+  const validStatuses = ["pending", "paid", "failed", "refunded"];
+  if (!validStatuses.includes(paymentStatus)) {
+    throw new ApiError(400, "Invalid payment status");
+  }
+  
+  const order = await Order.findById(id);
+  
+  if (!order) {
+    throw new ApiError(404, "Order not found");
+  }
+  
+  // Check authorization
+  const isCustomer = req.user.role === "customer" && order.customer.toString() === req.user._id.toString();
+  const isAdmin = req.user.role === "admin";
+  
+  if (!isCustomer && !isAdmin) {
+    throw new ApiError(403, "You are not authorized to update payment status for this order");
+  }
+  
+  // Update payment status
+  order.paymentStatus = paymentStatus;
+  if (transactionId) {
+    order.transactionId = transactionId;
+  }
+  if (paymentDetails) {
+    order.paymentDetails = paymentDetails;
+  }
+  
+  // Add status history entry
+  order.statusHistory.push({
+    status: order.status,
+    updatedAt: new Date(),
+    updatedBy: req.user._id,
+    updatedByModel: req.user.role === "customer" ? "Customer" : "Admin",
+    note: `Payment status updated to ${paymentStatus}`
+  });
+  
+  await order.save();
+  
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      { order },
+      "Payment status updated successfully"
+    )
+  );
+});
+
 // Get invoice file for an order
 export const getOrderInvoice = asyncHandler(async (req, res) => {
   const { id } = req.params;
@@ -1383,5 +1447,6 @@ export default {
   getMyCustomerOrders,
   getAvailableOrdersNearby,
   generateOrderInvoice,
-  getOrderInvoice
+  getOrderInvoice,
+  updateOrderPaymentStatus
 };
