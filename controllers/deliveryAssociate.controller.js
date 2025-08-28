@@ -4,6 +4,7 @@ import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { uploadToCloudinary, deleteFromCloudinary } from "../config/cloudinary.js";
+import fetch from "node-fetch";
 
 // Get delivery associate profile
 export const getDeliveryAssociateProfile = asyncHandler(async (req, res) => {
@@ -586,4 +587,60 @@ export const approveDeliveryAssociate = asyncHandler(async (req, res) => {
   associate.isVerified = !associate.isVerified;
   await associate.save();
   return res.status(200).json(new ApiResponse(200, associate, "Approval status updated"));
+});
+
+
+export const getNearbyOrders = asyncHandler(async (req, res) => {
+  const { longitude, latitude, maxDistance = 10000 } = req.query; // meters
+
+  if (!longitude || !latitude) {
+    throw new ApiError(400, "Longitude and latitude are required");
+  }
+
+  // 1️⃣ Get active orders that still need delivery
+  const orders = await Order.find({
+    status: { $in: ["pending", "processing", "out_for_delivery"] }
+  }).select("deliveryAddress");
+
+  const nearbyOrders = [];
+
+  for (const order of orders) {
+    const address = `${order.deliveryAddress.street}, ${order.deliveryAddress.city}, ${order.deliveryAddress.state}, ${order.deliveryAddress.postalCode}, ${order.deliveryAddress.country}`;
+
+    // 2️⃣ Geocode order address to get lat/lng
+    const geoRes = await fetch(
+      `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${process.env.GOOGLE_MAPS_API_KEY}`
+    );
+    const geoData = await geoRes.json();
+
+    if (geoData.status !== "OK" || !geoData.results[0]) continue;
+
+    const { lat, lng } = geoData.results[0].geometry.location;
+
+    // 3️⃣ Use Distance Matrix API to calculate driving distance
+    const distRes = await fetch(
+      `https://maps.googleapis.com/maps/api/distancematrix/json?origins=${latitude},${longitude}&destinations=${lat},${lng}&key=${process.env.GOOGLE_MAPS_API_KEY}`
+    );
+    const distData = await distRes.json();
+
+    if (distData.status !== "OK") continue;
+
+    const distanceMeters = distData.rows[0].elements[0].distance.value;
+
+    // 4️⃣ Filter orders within maxDistance
+    if (distanceMeters <= parseInt(maxDistance)) {
+      nearbyOrders.push({
+        order,
+        distanceMeters
+      });
+    }
+  }
+
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      { orders: nearbyOrders },
+      "Nearby orders fetched successfully"
+    )
+  );
 });

@@ -12,7 +12,8 @@ import {
   getEarnings,
   getNearbyDeliveryAssociates,
   requestPayout,
-  approveDeliveryAssociate
+  approveDeliveryAssociate,
+  getNearbyOrders
 } from "../controllers/deliveryAssociate.controller.js";
 import { verifyJWT, authorizeRoles } from "../middlewares/auth.middleware.js";
 import { upload } from "../middlewares/multer.middleware.js";
@@ -26,6 +27,7 @@ router.get(
   authorizeRoles("admin", "deliveryAssociate"),
   getAllDeliveryAssociates
 );
+router.get("/nearby-orders",getNearbyOrders)
 
 // Add this route after the GET / route
 router.patch(
