@@ -16,10 +16,10 @@ import path from 'path';
 
 // Create a new order
 export const createOrder = asyncHandler(async (req, res) => {
-  const { 
-    items, 
-    deliveryAddress, 
-    paymentMethod, 
+  const {
+    items,
+    deliveryAddress,
+    paymentMethod,
     couponCode,
     isExpressDelivery,
     notes,
@@ -27,18 +27,18 @@ export const createOrder = asyncHandler(async (req, res) => {
     transactionId,
     paymentDetails
   } = req.body;
-  
+
   console.log('Order creation request body:', req.body);
   console.log('Items received:', items);
-  
+
   // Validate required fields
   if (!items || !items.length || !deliveryAddress || !paymentMethod) {
     throw new ApiError(400, "Items, delivery address, and payment method are required");
   }
-  
+
   // Group items by supplier
   const itemsBySupplier = {};
-  
+
   // Validate items and calculate totals
   for (const item of items) {
     console.log('Processing item:', item);
@@ -46,47 +46,47 @@ export const createOrder = asyncHandler(async (req, res) => {
       console.log('Invalid item - product:', item.product, 'quantity:', item.quantity);
       throw new ApiError(400, "Product ID and quantity are required for each item");
     }
-    
+
     // Get product details
     const product = await Product.findById(item.product);
     if (!product) {
       throw new ApiError(404, `Product not found: ${item.product}`);
     }
-    
+
     // Check stock
     if (product.stockQuantity < item.quantity) {
       throw new ApiError(400, `Insufficient stock for ${product.name}`);
     }
-    
+
     // Get variation if specified
     let variationPrice = 0;
     if (item.variation) {
-      const variation = product.variations.find(v => 
+      const variation = product.variations.find(v =>
         v.name === item.variation.name && v.value === item.variation.value
       );
-      
+
       if (variation) {
         variationPrice = variation.additionalPrice || 0;
-        
+
         // Check variation stock
         if (variation.stockQuantity < item.quantity) {
           throw new ApiError(400, `Insufficient stock for ${product.name} (${variation.name}: ${variation.value})`);
         }
       }
     }
-    
+
     // Calculate price
     const price = product.price + variationPrice;
-    const discountedPrice = product.discountedPrice 
-      ? product.discountedPrice + variationPrice 
+    const discountedPrice = product.discountedPrice
+      ? product.discountedPrice + variationPrice
       : price;
-    
+
     // Group by supplier
     const supplierId = product.supplierId.toString();
     if (!itemsBySupplier[supplierId]) {
       itemsBySupplier[supplierId] = [];
     }
-    
+
     // Add item to supplier group
     itemsBySupplier[supplierId].push({
       product: product._id,
@@ -97,22 +97,22 @@ export const createOrder = asyncHandler(async (req, res) => {
       totalPrice: item.quantity * discountedPrice
     });
   }
-  
+
   // Create orders for each supplier
   const orders = [];
-  
+
   for (const supplierId in itemsBySupplier) {
     const supplierItems = itemsBySupplier[supplierId];
-    
+
     // Calculate subtotal
     const subtotal = supplierItems.reduce((sum, item) => sum + item.totalPrice, 0);
-    
+
     // Calculate delivery charge - waive if order is above ₹500
     let deliveryCharge = 0;
     if (subtotal < 500) {
       deliveryCharge = isExpressDelivery ? 50 : 20; // Apply delivery charge only for orders below ₹500
     }
-    
+
     // Calculate GST based on product GST rates
     let totalGST = 0;
     for (const item of supplierItems) {
@@ -123,7 +123,7 @@ export const createOrder = asyncHandler(async (req, res) => {
         totalGST += itemGST;
       }
     }
-    
+
     // Calculate discount amount (if coupon applied)
     let discountAmount = 0;
     if (couponCode) {
@@ -131,10 +131,10 @@ export const createOrder = asyncHandler(async (req, res) => {
       // For now, use a placeholder value
       discountAmount = Math.round(subtotal * 0.1); // 10% discount
     }
-    
+
     // Calculate platform fee (default value from schema)
     const platformFee = 2; // Default platform fee as per schema
-    
+
     // Calculate handling fee based on product categories
     let totalHandlingFee = 0;
     for (const item of supplierItems) {
@@ -144,7 +144,7 @@ export const createOrder = asyncHandler(async (req, res) => {
       });
       console.log('Product:', product ? product.name : 'Not found');
       console.log('Product categoryId:', product ? product.categoryId : 'No category');
-      
+
       if (product && product.categoryId) {
         console.log('Category details:', {
           categoryId: product.categoryId._id,
@@ -152,7 +152,7 @@ export const createOrder = asyncHandler(async (req, res) => {
           parent: product.categoryId.parent,
           handlingFee: product.categoryId.handlingFee
         });
-        
+
         // Only apply handling fee if category has a parent (is a subcategory)
         if (product.categoryId.parent && product.categoryId.handlingFee) {
           const itemHandlingFee = product.categoryId.handlingFee;
@@ -170,7 +170,7 @@ export const createOrder = asyncHandler(async (req, res) => {
     console.log('Total handling fee:', totalHandlingFee);
     // Calculate total amount including GST, platform fee and handling fee
     const totalAmount = subtotal - discountAmount + totalGST + deliveryCharge + platformFee + totalHandlingFee;
-    
+
     // Create order
     const order = await Order.create({
       customer: req.user._id,
@@ -194,7 +194,7 @@ export const createOrder = asyncHandler(async (req, res) => {
       notes,
       estimatedDeliveryDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000) // 3 days from now
     });
-    
+
     // Add status history entry
     order.statusHistory.push({
       status: "pending",
@@ -202,30 +202,30 @@ export const createOrder = asyncHandler(async (req, res) => {
       updatedBy: req.user._id,
       updatedByModel: "Customer"
     });
-    
+
     await order.save();
-    
+
     // Update product stock
     for (const item of supplierItems) {
       const product = await Product.findById(item.product);
-      
+
       // Update main stock
       product.stockQuantity -= item.quantity;
-      
+
       // Update variation stock if applicable
       if (item.variation) {
-        const variationIndex = product.variations.findIndex(v => 
+        const variationIndex = product.variations.findIndex(v =>
           v.name === item.variation.name && v.value === item.variation.value
         );
-        
+
         if (variationIndex !== -1) {
           product.variations[variationIndex].stockQuantity -= item.quantity;
         }
       }
-      
+
       await product.save();
     }
-    
+
     orders.push(order);
 
     // --- Notification Logic ---
@@ -251,7 +251,7 @@ export const createOrder = asyncHandler(async (req, res) => {
       // Populate order with product details for email
       const populatedOrder = await Order.findById(order._id)
         .populate("items.product", "name price discountedPrice images")
-        .populate("supplier", "businessName");
+        .populate("supplier", "businessName address");
 
       // Generate order summary HTML
       const orderSummaryHTML = generateOrderSummaryHTML(populatedOrder, customer);
@@ -281,7 +281,7 @@ export const createOrder = asyncHandler(async (req, res) => {
     }
     // --- End Notification Logic ---
   }
-  
+
   // Clear customer's cart if order was created from cart
   if (req.body.clearCart) {
     const cart = await Cart.findOne({ customer: req.user._id });
@@ -291,7 +291,7 @@ export const createOrder = asyncHandler(async (req, res) => {
       await cart.save();
     }
   }
-  
+
   return res.status(201).json(
     new ApiResponse(
       201,
@@ -303,35 +303,35 @@ export const createOrder = asyncHandler(async (req, res) => {
 
 // Get all orders (admin only)
 export const getAllOrders = asyncHandler(async (req, res) => {
-  const { 
-    status, 
-    customerId, 
-    supplierId, 
-    startDate, 
-    endDate, 
-    sort = "createdAt", 
-    order = "desc", 
-    page = 1, 
-    limit = 10 
+  const {
+    status,
+    customerId,
+    supplierId,
+    startDate,
+    endDate,
+    sort = "createdAt",
+    order = "desc",
+    page = 1,
+    limit = 10
   } = req.query;
-  
+
   const queryOptions = {};
-  
+
   // Filter by status
   if (status) {
     queryOptions.status = status;
   }
-  
+
   // Filter by customer
   if (customerId) {
     queryOptions.customer = customerId;
   }
-  
+
   // Filter by supplier
   if (supplierId) {
     queryOptions.supplier = supplierId;
   }
-  
+
   // Filter by date range
   if (startDate && endDate) {
     queryOptions.createdAt = {
@@ -343,30 +343,30 @@ export const getAllOrders = asyncHandler(async (req, res) => {
   } else if (endDate) {
     queryOptions.createdAt = { $lte: new Date(endDate) };
   }
-  
+
   // Calculate pagination
   const skip = (parseInt(page) - 1) * parseInt(limit);
-  
+
   // Prepare sort options
   const sortOptions = {};
   sortOptions[sort] = order === "asc" ? 1 : -1;
-  
+
   // Get orders with pagination
   const orders = await Order.find(queryOptions)
     .populate("customer", "firstName lastName email phone")
-    .populate("supplier", "businessName")
+    .populate("supplier", "businessName address")
     .populate("items.product", "name images")
     .sort(sortOptions)
     .skip(skip)
     .limit(parseInt(limit));
-  
+
   // Get total count
   const totalOrders = await Order.countDocuments(queryOptions);
-  
+
   return res.status(200).json(
     new ApiResponse(
       200,
-      { 
+      {
         orders,
         pagination: {
           total: totalOrders,
@@ -383,28 +383,28 @@ export const getAllOrders = asyncHandler(async (req, res) => {
 // Get order by ID
 export const getOrderById = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  
+
   const order = await Order.findById(id)
     .populate("customer", "firstName lastName email phone")
-    .populate("supplier", "businessName email phone")
+    .populate("supplier", "businessName email phone address")
     .populate("items.product", "name images")
     .populate("deliveryAssociate.associate", "name phone");
-  
+
   if (!order) {
     throw new ApiError(404, "Order not found");
   }
-  
+
   // Check authorization
   const isCustomer = req.user.role === "customer" && order.customer._id.toString() === req.user._id.toString();
   const isSupplier = req.user.role === "supplier" && order.supplier._id.toString() === req.user._id.toString();
   const isAdmin = req.user.role === "admin";
-  const isDeliveryAssociate = req.user.role === "deliveryAssociate" && 
+  const isDeliveryAssociate = req.user.role === "deliveryAssociate" &&
     order.deliveryAssociate?.associate?.toString() === req.user._id.toString();
-  
+
   if (!isCustomer && !isSupplier && !isAdmin && !isDeliveryAssociate) {
     throw new ApiError(403, "You are not authorized to view this order");
   }
-  
+
   return res.status(200).json(
     new ApiResponse(
       200,
@@ -418,28 +418,28 @@ export const getOrderById = asyncHandler(async (req, res) => {
 export const updateOrderStatus = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { status, note } = req.body;
-  
+
   if (!status) {
     throw new ApiError(400, "Status is required");
   }
-  
+
   const order = await Order.findById(id);
-  
+
   if (!order) {
     throw new ApiError(404, "Order not found");
   }
-  
+
   // Check authorization
   const isCustomer = req.user.role === "customer" && order.customer.toString() === req.user._id.toString();
   const isSupplier = req.user.role === "supplier" && order.supplier.toString() === req.user._id.toString();
   const isAdmin = req.user.role === "admin";
-  const isDeliveryAssociate = req.user.role === "deliveryAssociate" && 
+  const isDeliveryAssociate = req.user.role === "deliveryAssociate" &&
     order.deliveryAssociate?.associate?.toString() === req.user._id.toString();
-  
+
   if (!isCustomer && !isSupplier && !isAdmin && !isDeliveryAssociate) {
     throw new ApiError(403, "You are not authorized to update this order");
   }
-  
+
   // Validate status transition based on role
   const validTransitions = {
     customer: {
@@ -471,12 +471,12 @@ export const updateOrderStatus = asyncHandler(async (req, res) => {
     if (req.user.role !== "customer") {
       throw new ApiError(403, "Only customers can return orders");
     }
-    
+
     // Order must be delivered
     if (order.status !== "delivered") {
       throw new ApiError(400, "Only delivered orders can be returned");
     }
-    
+
     // Check if order was delivered within 7 days
     if (order.deliveredAt) {
       const daysSinceDelivery = (new Date() - new Date(order.deliveredAt)) / (1000 * 60 * 60 * 24);
@@ -484,7 +484,7 @@ export const updateOrderStatus = asyncHandler(async (req, res) => {
         throw new ApiError(400, "Return window has expired. Orders can only be returned within 7 days of delivery");
       }
     }
-    
+
     // Return reason is required
     if (!note || !note.trim()) {
       throw new ApiError(400, "Return reason is required");
@@ -498,31 +498,31 @@ export const updateOrderStatus = asyncHandler(async (req, res) => {
   console.log('User role:', req.user.role);
   console.log('Allowed transitions for this status:', validTransitions[req.user.role][order.status]);
   console.log('-------------------------------------');
-  
+
   const roleTransitions = validTransitions[req.user.role];
   if (!roleTransitions || !roleTransitions[order.status] || !roleTransitions[order.status].includes(status)) {
     throw new ApiError(400, `Cannot transition from ${order.status} to ${status} as ${req.user.role}`);
   }
-  
+
   // Update order status
   order.status = status;
-  
+
   // Set return reason if status is returned
   if (status === "returned" && note) {
     order.returnReason = note;
   }
-  
+
   // Add status history entry
   order.statusHistory.push({
     status,
     updatedAt: new Date(),
     updatedBy: req.user._id,
-    updatedByModel: req.user.role === "customer" ? "Customer" : 
-                    req.user.role === "supplier" ? "Supplier" : 
-                    req.user.role === "admin" ? "Admin" : "DeliveryAssociate",
+    updatedByModel: req.user.role === "customer" ? "Customer" :
+      req.user.role === "supplier" ? "Supplier" :
+        req.user.role === "admin" ? "Admin" : "DeliveryAssociate",
     note: note || ""
   });
-  
+
   // Update delivered date if status is delivered
   if (status === "delivered") {
     order.deliveredAt = new Date();
@@ -532,7 +532,7 @@ export const updateOrderStatus = asyncHandler(async (req, res) => {
   if (status === "damaged") {
     console.log(`Order ${order._id} marked as DAMAGED by ${req.user.role} (${req.user._id}) at ${new Date().toISOString()}`);
   }
-  
+
   await order.save();
 
   // Auto-generate invoice when order is delivered or payment is completed
@@ -571,7 +571,7 @@ export const updateOrderStatus = asyncHandler(async (req, res) => {
       });
     }
   }
-  
+
   return res.status(200).json(
     new ApiResponse(
       200,
@@ -585,39 +585,39 @@ export const updateOrderStatus = asyncHandler(async (req, res) => {
 export const assignDeliveryAssociate = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { deliveryAssociateId } = req.body;
-  
+
   if (!deliveryAssociateId) {
     throw new ApiError(400, "Delivery associate ID is required");
   }
-  
+
   const order = await Order.findById(id);
-  
+
   if (!order) {
     throw new ApiError(404, "Order not found");
   }
-  
+
   // Check authorization (only admin or supplier can assign)
   const isSupplier = req.user.role === "supplier" && order.supplier.toString() === req.user._id.toString();
   const isAdmin = req.user.role === "admin";
-  
+
   if (!isSupplier && !isAdmin) {
     throw new ApiError(403, "You are not authorized to assign delivery associate");
   }
-  
+
   // Check if order status is valid for assignment
   if (order.status !== "processing") {
     throw new ApiError(400, "Delivery associate can only be assigned to orders in processing status");
   }
-  
+
   // Update delivery associate
   order.deliveryAssociate = {
     associate: deliveryAssociateId,
     assignedAt: new Date(),
     status: "assigned"
   };
-  
+
   await order.save();
-  
+
   return res.status(200).json(
     new ApiResponse(
       200,
@@ -628,29 +628,94 @@ export const assignDeliveryAssociate = asyncHandler(async (req, res) => {
 });
 
 // Update delivery status
+// export const updateDeliveryStatus = asyncHandler(async (req, res) => {
+//   const { id } = req.params;
+//   const { status, note } = req.body;
+
+//   if (!status) {
+//     throw new ApiError(400, "Status is required");
+//   }
+
+//   const order = await Order.findById(id);
+
+//   if (!order) {
+//     throw new ApiError(404, "Order not found");
+//   }
+
+//   // Check authorization (only delivery associate assigned to this order can update)
+//   const isAssignedDeliveryAssociate = 
+//     req.user.role === "deliveryAssociate" && 
+//     order.deliveryAssociate?.associate?.toString() === req.user._id.toString();
+
+//   if (!isAssignedDeliveryAssociate) {
+//     throw new ApiError(403, "You are not authorized to update delivery status");
+//   }
+
+//   // Validate status transition
+//   const validTransitions = {
+//     assigned: ["picked_up"],
+//     picked_up: ["out_for_delivery"],
+//     out_for_delivery: ["delivered", "failed"],
+//     delivered: [],
+//     failed: []
+//   };
+
+//   if (!validTransitions[order.deliveryAssociate.status] || 
+//       !validTransitions[order.deliveryAssociate.status].includes(status)) {
+//     throw new ApiError(400, `Cannot transition from ${order.deliveryAssociate.status} to ${status}`);
+//   }
+
+//   // Update delivery status
+//   order.deliveryAssociate.status = status;
+
+//   // Update order status if delivery status is delivered
+//   if (status === "delivered") {
+//     order.status = "delivered";
+//     order.deliveredAt = new Date();
+
+//     // Add status history entry
+//     order.statusHistory.push({
+//       status: "delivered",
+//       updatedAt: new Date(),
+//       updatedBy: req.user._id,
+//       updatedByModel: "DeliveryAssociate",
+//       note: note || "Delivered by delivery associate"
+//     });
+//   }
+
+//   await order.save();
+
+//   return res.status(200).json(
+//     new ApiResponse(
+//       200,
+//       { order },
+//       "Delivery status updated successfully"
+//     )
+//   );
+// });
 export const updateDeliveryStatus = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { status, note } = req.body;
-  
+
   if (!status) {
     throw new ApiError(400, "Status is required");
   }
-  
+
   const order = await Order.findById(id);
-  
+
   if (!order) {
     throw new ApiError(404, "Order not found");
   }
-  
+
   // Check authorization (only delivery associate assigned to this order can update)
-  const isAssignedDeliveryAssociate = 
-    req.user.role === "deliveryAssociate" && 
+  const isAssignedDeliveryAssociate =
+    req.user.role === "deliveryAssociate" &&
     order.deliveryAssociate?.associate?.toString() === req.user._id.toString();
-  
+
   if (!isAssignedDeliveryAssociate) {
     throw new ApiError(403, "You are not authorized to update delivery status");
   }
-  
+
   // Validate status transition
   const validTransitions = {
     assigned: ["picked_up"],
@@ -659,20 +724,43 @@ export const updateDeliveryStatus = asyncHandler(async (req, res) => {
     delivered: [],
     failed: []
   };
-  
-  if (!validTransitions[order.deliveryAssociate.status] || 
-      !validTransitions[order.deliveryAssociate.status].includes(status)) {
-    throw new ApiError(400, `Cannot transition from ${order.deliveryAssociate.status} to ${status}`);
+
+  if (
+    !validTransitions[order.deliveryAssociate.status] ||
+    !validTransitions[order.deliveryAssociate.status].includes(status)
+  ) {
+    throw new ApiError(
+      400,
+      `Cannot transition from ${order.deliveryAssociate.status} to ${status}`
+    );
   }
-  
+
   // Update delivery status
   order.deliveryAssociate.status = status;
-  
+
   // Update order status if delivery status is delivered
   if (status === "delivered") {
     order.status = "delivered";
     order.deliveredAt = new Date();
-    
+
+    // ✅ NEW: Mark payment as paid when delivered (for all payment methods)
+    if (order.paymentStatus !== "paid") {
+      order.paymentStatus = "paid";
+      order.paymentReceivedAt = new Date(); // optional timestamp
+      
+      const paymentNote = order.paymentMethod === "cash_on_delivery" 
+        ? "Payment received (Cash on Delivery)"
+        : "Payment confirmed upon delivery";
+        
+      order.statusHistory.push({
+        status: "paid",
+        updatedAt: new Date(),
+        updatedBy: req.user._id,
+        updatedByModel: "DeliveryAssociate",
+        note: paymentNote
+      });
+    }
+
     // Add status history entry
     order.statusHistory.push({
       status: "delivered",
@@ -682,9 +770,9 @@ export const updateDeliveryStatus = asyncHandler(async (req, res) => {
       note: note || "Delivered by delivery associate"
     });
   }
-  
+
   await order.save();
-  
+
   return res.status(200).json(
     new ApiResponse(
       200,
@@ -696,37 +784,37 @@ export const updateDeliveryStatus = asyncHandler(async (req, res) => {
 
 // Get my orders (supplier only)
 export const getMyOrders = asyncHandler(async (req, res) => {
-  const { 
-    status, 
-    startDate, 
-    endDate, 
-    sort = "createdAt", 
-    order = "desc", 
-    page = 1, 
-    limit = 10 
+  const {
+    status,
+    startDate,
+    endDate,
+    sort = "createdAt",
+    order = "desc",
+    page = 1,
+    limit = 10
   } = req.query;
-  
+
   const queryOptions = { supplier: req.user._id };
-  
+
   // Filter by status
   if (status) {
     queryOptions.status = status;
   }
-  
+
   // Filter by date range
   if (startDate || endDate) {
     queryOptions.createdAt = {};
     if (startDate) queryOptions.createdAt.$gte = new Date(startDate);
     if (endDate) queryOptions.createdAt.$lte = new Date(endDate);
   }
-  
+
   // Calculate pagination
   const skip = (parseInt(page) - 1) * parseInt(limit);
-  
+
   // Prepare sort options
   const sortOptions = {};
   sortOptions[sort] = order === "asc" ? 1 : -1;
-  
+
   // Get orders with pagination
   const orders = await Order.find(queryOptions)
     .populate("customer", "firstName lastName email phone")
@@ -735,14 +823,14 @@ export const getMyOrders = asyncHandler(async (req, res) => {
     .sort(sortOptions)
     .skip(skip)
     .limit(parseInt(limit));
-  
+
   // Get total count
   const totalOrders = await Order.countDocuments(queryOptions);
-  
+
   return res.status(200).json(
     new ApiResponse(
       200,
-      { 
+      {
         orders,
         pagination: {
           total: totalOrders,
@@ -791,7 +879,7 @@ export const getAvailableOrdersForDelivery = asyncHandler(async (req, res) => {
     ]
   })
     .populate("customer", "firstName lastName email phone")
-    .populate("supplier", "businessName")
+    .populate("supplier", "businessName address")
     .populate("items.product", "name images");
 
   return res.status(200).json(
@@ -800,6 +888,26 @@ export const getAvailableOrdersForDelivery = asyncHandler(async (req, res) => {
 });
 
 // Allow delivery associate to self-assign an order
+// export const selfAssignOrder = asyncHandler(async (req, res) => {
+//   const { id } = req.params;
+//   const order = await Order.findById(id);
+//   if (!order) throw new ApiError(404, "Order not found");
+//   if (order.deliveryAssociate?.associate)
+//     throw new ApiError(400, "Order already assigned");
+//   if (!["pending", "packaging"].includes(order.status))
+//     throw new ApiError(400, "Order not available for assignment");
+
+//   order.deliveryAssociate = {
+//     associate: req.user._id,
+//     assignedAt: new Date(),
+//     status: "packaging"
+//   };
+//   await order.save();
+//   return res.status(200).json(
+//     new ApiResponse(200, { order }, "Order self-assigned successfully")
+//   );
+// });
+
 export const selfAssignOrder = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const order = await Order.findById(id);
@@ -812,9 +920,20 @@ export const selfAssignOrder = asyncHandler(async (req, res) => {
   order.deliveryAssociate = {
     associate: req.user._id,
     assignedAt: new Date(),
-    status: "picked_up"
+    status: "packaging" // delivery associate internal status
   };
+
+  order.status = "packaging"; // 👈 main order status
+  order.statusHistory.push({
+    status: "packaging",
+    updatedAt: new Date(),
+    updatedBy: req.user._id,
+    updatedByModel: "DeliveryAssociate",
+    note: "Order accepted by delivery associate"
+  });
+
   await order.save();
+
   return res.status(200).json(
     new ApiResponse(200, { order }, "Order self-assigned successfully")
   );
@@ -855,7 +974,7 @@ export const getMyCustomerOrders = asyncHandler(async (req, res) => {
 
   // Get orders with pagination
   const orders = await Order.find(queryOptions)
-    .populate("supplier", "businessName")
+    .populate("supplier", "businessName address")
     .populate("items.product", "name images price discountedPrice")
     .sort(sortOptions)
     .skip(skip)
@@ -893,18 +1012,18 @@ export const getAvailableOrdersNearby = asyncHandler(async (req, res) => {
   const orders = await Order.find({
     status: "pending",
     isAssigned: false,
-    "deliveryAddress.location": {      
-        $near: {
-          $geometry: {
-            type: "Point",
-            coordinates: [parseFloat(longitude), parseFloat(latitude)]
-          },
-          $maxDistance: parseInt(maxDistance),
-        }
-      }    
+    "deliveryAddress.location": {
+      $near: {
+        $geometry: {
+          type: "Point",
+          coordinates: [parseFloat(longitude), parseFloat(latitude)]
+        },
+        $maxDistance: parseInt(maxDistance),
+      }
+    }
   })
-  .populate("customer", "firstName lastName")
-  .select("_id createdAt customer deliveryAddress");
+    .populate("customer", "firstName lastName")
+    .select("_id createdAt customer deliveryAddress");
 
   console.log("Found orders:", orders.map(o => o.deliveryAddress.location));
   return res.status(200).json(
@@ -916,36 +1035,36 @@ export const getAvailableOrdersNearby = asyncHandler(async (req, res) => {
 // Generate invoice for an order
 export const generateOrderInvoice = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  
+
   const order = await Order.findById(id)
     .populate("customer", "firstName lastName email phone")
-    .populate("supplier", "businessName email phone")
+    .populate("supplier", "businessName email phone address")
     .populate("items.product", "name images price discountedPrice");
-  
+
   if (!order) {
     throw new ApiError(404, "Order not found");
   }
-  
+
   // Check authorization
   const isCustomer = req.user.role === "customer" && order.customer._id.toString() === req.user._id.toString();
   const isSupplier = req.user.role === "supplier" && order.supplier._id.toString() === req.user._id.toString();
   const isAdmin = req.user.role === "admin";
-  
+
   if (!isCustomer && !isSupplier && !isAdmin) {
     throw new ApiError(403, "You are not authorized to generate invoice for this order");
   }
-  
+
   // Check if invoice should be generated
   if (!shouldGenerateInvoice(order)) {
     throw new ApiError(400, "Invoice can only be generated for delivered orders or paid online payments");
   }
-  
+
   // Check if invoice already exists
   if (order.invoiceUrl) {
     return res.status(200).json(
       new ApiResponse(
         200,
-        { 
+        {
           invoiceUrl: getInvoiceUrl(order),
           message: "Invoice already exists"
         },
@@ -953,15 +1072,15 @@ export const generateOrderInvoice = asyncHandler(async (req, res) => {
       )
     );
   }
-  
+
   try {
     // Generate invoice
     const invoiceUrl = await generateInvoicePDF(order, order.customer, order.supplier);
-    
+
     // Update order with invoice URL
     order.invoiceUrl = invoiceUrl;
     await order.save();
-    
+
     return res.status(200).json(
       new ApiResponse(
         200,
@@ -979,31 +1098,31 @@ export const generateOrderInvoice = asyncHandler(async (req, res) => {
 export const updateOrderPaymentStatus = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { paymentStatus, transactionId, paymentDetails } = req.body;
-  
+
   if (!paymentStatus) {
     throw new ApiError(400, "Payment status is required");
   }
-  
+
   // Validate payment status
   const validStatuses = ["pending", "paid", "failed", "refunded"];
   if (!validStatuses.includes(paymentStatus)) {
     throw new ApiError(400, "Invalid payment status");
   }
-  
+
   const order = await Order.findById(id);
-  
+
   if (!order) {
     throw new ApiError(404, "Order not found");
   }
-  
+
   // Check authorization
   const isCustomer = req.user.role === "customer" && order.customer.toString() === req.user._id.toString();
   const isAdmin = req.user.role === "admin";
-  
+
   if (!isCustomer && !isAdmin) {
     throw new ApiError(403, "You are not authorized to update payment status for this order");
   }
-  
+
   // Update payment status
   order.paymentStatus = paymentStatus;
   if (transactionId) {
@@ -1012,7 +1131,7 @@ export const updateOrderPaymentStatus = asyncHandler(async (req, res) => {
   if (paymentDetails) {
     order.paymentDetails = paymentDetails;
   }
-  
+
   // Add status history entry
   order.statusHistory.push({
     status: order.status,
@@ -1021,9 +1140,9 @@ export const updateOrderPaymentStatus = asyncHandler(async (req, res) => {
     updatedByModel: req.user.role === "customer" ? "Customer" : "Admin",
     note: `Payment status updated to ${paymentStatus}`
   });
-  
+
   await order.save();
-  
+
   return res.status(200).json(
     new ApiResponse(
       200,
@@ -1036,41 +1155,41 @@ export const updateOrderPaymentStatus = asyncHandler(async (req, res) => {
 // Get invoice file for an order
 export const getOrderInvoice = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  
+
   const order = await Order.findById(id)
     .populate("customer", "firstName lastName email phone")
-    .populate("supplier", "businessName email phone");
-  
+    .populate("supplier", "businessName email phone address");
+
   if (!order) {
     throw new ApiError(404, "Order not found");
   }
-  
+
   // Check authorization
   const isCustomer = req.user.role === "customer" && order.customer._id.toString() === req.user._id.toString();
   const isSupplier = req.user.role === "supplier" && order.supplier._id.toString() === req.user._id.toString();
   const isAdmin = req.user.role === "admin";
-  
+
   if (!isCustomer && !isSupplier && !isAdmin) {
     throw new ApiError(403, "You are not authorized to view invoice for this order");
   }
-  
+
   if (!order.invoiceUrl) {
     throw new ApiError(404, "Invoice not found for this order");
   }
-  
+
   try {
     // Get the file path from the URL
     const filePath = path.join(__dirname, '../public', order.invoiceUrl);
-    
+
     // Check if file exists
     if (!fs.existsSync(filePath)) {
       throw new ApiError(404, "Invoice file not found");
     }
-    
+
     // Set headers for text file download
     res.setHeader('Content-Type', 'text/plain');
     res.setHeader('Content-Disposition', `attachment; filename="invoice-${order.orderId}.txt"`);
-    
+
     // Stream the file
     const fileStream = fs.createReadStream(filePath);
     fileStream.pipe(res);
@@ -1086,14 +1205,14 @@ export const autoGenerateInvoice = async (order) => {
     if (shouldGenerateInvoice(order)) {
       const populatedOrder = await Order.findById(order._id)
         .populate("customer", "firstName lastName email phone")
-        .populate("supplier", "businessName email phone")
+        .populate("supplier", "businessName email phone address")
         .populate("items.product", "name images price discountedPrice");
-      
+
       if (!populatedOrder.invoiceUrl) {
         const invoiceUrl = await generateInvoicePDF(populatedOrder, populatedOrder.customer, populatedOrder.supplier);
         populatedOrder.invoiceUrl = invoiceUrl;
         await populatedOrder.save();
-        
+
         console.log(`Invoice generated for order ${order.orderId}: ${invoiceUrl}`);
       }
     }
@@ -1125,7 +1244,7 @@ const generateOrderSummaryHTML = (order, customer) => {
     const itemPrice = item.discountedPrice || item.price;
     const itemTotal = item.quantity * itemPrice;
     const variationText = item.variation ? ` (${item.variation.name}: ${item.variation.value})` : '';
-    
+
     return `
       <tr style="border-bottom: 1px solid #e0e0e0;">
         <td style="padding: 12px; text-align: left;">
@@ -1284,7 +1403,7 @@ const generateSupplierOrderHTML = (order, supplier) => {
     const itemPrice = item.discountedPrice || item.price;
     const itemTotal = item.quantity * itemPrice;
     const variationText = item.variation ? ` (${item.variation.name}: ${item.variation.value})` : '';
-    
+
     return `
       <tr style="border-bottom: 1px solid #e0e0e0;">
         <td style="padding: 12px; text-align: left;">

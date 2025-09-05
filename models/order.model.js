@@ -116,14 +116,14 @@ const orderSchema = new mongoose.Schema(
     // Order status and tracking
     status: {
       type: String,
-      enum: ["pending", "processing", "out_for_delivery", "delivered", "cancelled", "returned", "damaged"],
+      enum: ["pending", "packaging", "processing","out_for_delivery", "delivered", "cancelled", "returned", "damaged"],
       default: "pending"
     },
     statusHistory: [
       {
         status: {
           type: String,
-          enum: ["pending", "processing", "out_for_delivery", "delivered", "cancelled", "returned", "damaged"]
+          enum: ["pending","packaging", "processing", "out_for_delivery", "delivered", "cancelled", "returned", "damaged"]
         },
         updatedAt: {
           type: Date,
@@ -189,7 +189,7 @@ const orderSchema = new mongoose.Schema(
       },
       status: {
         type: String,
-        enum: ["assigned", "picked_up", "out_for_delivery", "delivered", "failed"]
+        enum: ["packaging","assigned", "out_for_delivery", "delivered", "failed"]
       }
     },
     estimatedDeliveryDate: {

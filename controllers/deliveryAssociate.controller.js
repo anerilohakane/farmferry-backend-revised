@@ -306,7 +306,7 @@ export const updateDeliveryStatus = asyncHandler(async (req, res) => {
   }
   
   // Validate status
-  if (!["picked_up", "out_for_delivery", "delivered", "failed"].includes(status)) {
+  if (!["packaging", "out_for_delivery", "delivered", "failed"].includes(status)) {
     throw new ApiError(400, "Invalid status");
   }
   
@@ -322,7 +322,7 @@ export const updateDeliveryStatus = asyncHandler(async (req, res) => {
   // Validate status transition
   const validTransitions = {
     assigned: ["picked_up"],
-    picked_up: ["out_for_delivery"],
+    packaging: ["out_for_delivery"],
     out_for_delivery: ["delivered", "failed"],
     delivered: [],
     failed: []
@@ -337,7 +337,7 @@ export const updateDeliveryStatus = asyncHandler(async (req, res) => {
   order.deliveryAssociate.status = status;
   
   // Update order status based on delivery status
-  if (status === "picked_up" || status === "out_for_delivery") {
+  if (status === "packaging" || status === "out_for_delivery") {
     order.status = "out_for_delivery";
   }
   
