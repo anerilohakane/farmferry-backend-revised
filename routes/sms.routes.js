@@ -10,4 +10,6 @@ router.post("/send-order-sms", smsUtils.sendOrderSMS);
 // Route: Send OTP for delivery confirmation
 router.post("/send-otp", smsUtils.sendOTP);
 
+router.post("/send-new-order-sms", smsUtils.sendNewOrderToDeliveryBoys);
+
 export default router;

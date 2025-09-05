@@ -12,7 +12,9 @@ import {
   getAdminReplacements,
   updateReplacementStatus,
   resendDeliveryOTP,
-  getDeliveryAnalytics
+  getDeliveryAnalytics,
+
+  verifyDeliveryOTPWithNotifications
 } from "../controllers/advancedDelivery.controller.js";
 import { verifyJWT, authorizeRoles } from "../middlewares/auth.middleware.js";
 import { upload } from "../middlewares/multer.middleware.js";
@@ -29,6 +31,7 @@ router.post(
   getOptimizedRoute
 );
 
+router.post('/verify-delivery', verifyJWT, authorizeRoles("deliveryAssociate"), verifyDeliveryOTPWithNotifications);
 // Get delivery time estimation
 router.post(
   "/route/estimate/:orderId",

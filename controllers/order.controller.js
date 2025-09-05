@@ -10,6 +10,7 @@ import sendEmail from "../utils/email.js";
 import Supplier from "../models/supplier.model.js";
 import Admin from "../models/admin.model.js";
 import Customer from "../models/customer.model.js";
+import DeliveryAssociate from "../models/deliveryAssociate.model.js";
 import { generateInvoicePDF, shouldGenerateInvoice, getInvoiceUrl } from "../utils/invoiceGenerator.js";
 import fs from 'fs';
 import path from 'path';
@@ -232,6 +233,38 @@ export const createOrder = asyncHandler(async (req, res) => {
     // Fetch customer and supplier details
     const customer = await Customer.findById(req.user._id);
     const supplier = await Supplier.findById(supplierId);
+
+    // Send SMS notification to all active delivery boys
+    try {
+      // Fetch all active delivery associates
+      const deliveryAssociates = await DeliveryAssociate.find({ isActive: true });
+      
+      if (deliveryAssociates.length > 0) {
+        // Prepare SMS body
+        const smsBody = `New order available! Order ID: ${order._id}. Check your app for details.`;
+        
+        // Send SMS to each delivery associate
+        const smsPromises = deliveryAssociates.map(async (da) => {
+          if (da.phone) {
+            try {
+              await sendSMS.sendSMS(da.phone, smsBody);
+              console.log(`✅ SMS sent to delivery associate ${da.name || da.phone} for order ${order._id}`);
+            } catch (smsError) {
+              console.error(`❌ Failed to send SMS to ${da.phone}:`, smsError.message);
+            }
+          }
+        });
+        
+        // Wait for all SMS to be sent (but don't fail if some fail)
+        await Promise.allSettled(smsPromises);
+        console.log(`📱 SMS notifications sent to ${deliveryAssociates.length} delivery associates for order ${order._id}`);
+      } else {
+        console.log(`⚠️ No active delivery associates found to notify for order ${order._id}`);
+      }
+    } catch (error) {
+      console.error(`❌ Failed to send SMS notifications to delivery boys for order ${order._id}:`, error);
+      // Don't fail the order creation if SMS fails
+    }
 
     // Send SMS to customer
     // if (customer && customer.phone) {

@@ -5,6 +5,14 @@ import { ApiResponse } from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { uploadToCloudinary, deleteFromCloudinary } from "../config/cloudinary.js";
 import fetch from "node-fetch";
+// controllers/deliveryController.js
+import DeliveryVerificationService from '../utils/deliveryVerificationService.js';
+import Customer from '../models/customer.model.js';
+
+/**
+ * Verify OTP and mark order as delivered with notifications
+ */
+
 
 // Get delivery associate profile
 export const getDeliveryAssociateProfile = asyncHandler(async (req, res) => {

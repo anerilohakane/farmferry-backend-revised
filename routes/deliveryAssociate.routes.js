@@ -13,7 +13,7 @@ import {
   getNearbyDeliveryAssociates,
   requestPayout,
   approveDeliveryAssociate,
-  getNearbyOrders
+  getNearbyOrders,
 } from "../controllers/deliveryAssociate.controller.js";
 import { verifyJWT, authorizeRoles } from "../middlewares/auth.middleware.js";
 import { upload } from "../middlewares/multer.middleware.js";
@@ -36,6 +36,7 @@ router.patch(
   authorizeRoles("admin"),
   approveDeliveryAssociate
 );
+
 
 // Routes for finding nearby delivery associates (for admin/supplier)
 router.get(

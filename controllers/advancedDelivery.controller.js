@@ -10,12 +10,57 @@ import QRCodeService from "../utils/qrCodeService.js";
 import DeliveryVerificationService from "../utils/deliveryVerificationService.js";
 import { uploadToCloudinary } from "../config/cloudinary.js";
 import { customAlphabet } from 'nanoid';
+// controllers/deliveryController.js
 
 /**
  * Advanced Delivery Controller
  * Handles Google Maps optimization, QR codes, OTP verification, and order replacement
  */
+export const verifyDeliveryOTPWithNotifications = asyncHandler(async (req, res) => {
+  const { orderId, otp } = req.body;
+  
+  if (!orderId || !otp) {
+    throw new ApiError(400, "Order ID and OTP are required");
+  }
 
+  // Get order details
+  const order = await Order.findById(orderId).populate('customer');
+  if (!order) {
+    throw new ApiError(404, "Order not found");
+  }
+
+  // Get customer phone for OTP verification
+  const customerPhone = order.customer?.phone;
+  if (!customerPhone) {
+    throw new ApiError(400, "Customer phone number not found");
+  }
+
+  // Verify OTP with notifications
+  const verificationResult = await DeliveryVerificationService.verifyDeliveryOTPWithNotifications(
+    orderId,
+    otp,
+    customerPhone,
+    req.user._id // delivery associate ID from auth
+  );
+
+  if (!verificationResult.success) {
+    throw new ApiError(400, verificationResult.message || "OTP verification failed");
+  }
+
+  res.status(200).json(
+    new ApiResponse(
+      200,
+      { 
+        order: {
+          _id: order._id,
+          status: 'delivered',
+          deliveredAt: new Date()
+        }
+      },
+      "Order delivered successfully! Notifications sent to customer and delivery associate."
+    )
+  );
+});
 // ==================== OTP GENERATION ====================
 
 /**
