@@ -605,6 +605,37 @@ export const createOrder = asyncHandler(async (req, res) => {
       console.error('Error creating notifications:', error);
     }
 
+    try {
+      // Find admin user(s)
+      const admins = await Admin.find({}).select("phone");
+
+      if (admins.length > 0) {
+        // Prepare SMS body for admin
+        const adminSmsBody = `New order received! Order ID: ${order.orderId}. Total amount: ₹${order.totalAmount}. Customer: ${customer?.firstName || ''} ${customer?.lastName || ''}`;
+
+        // Send SMS to each admin
+        const adminSmsPromises = admins.map(async (admin) => {
+          if (admin.phone) {
+            try {
+              await sendSMS.sendSMS(admin.phone, adminSmsBody);
+              console.log(`✅ SMS sent to admin ${admin.phone} for order ${order.orderId}`);
+            } catch (smsError) {
+              console.error(`❌ Failed to send SMS to admin ${admin.phone}:`, smsError.message);
+            }
+          }
+        });
+
+        // Wait for all admin SMS to be sent
+        await Promise.allSettled(adminSmsPromises);
+        console.log(`📱 SMS notifications sent to ${admins.length} admins for order ${order.orderId}`);
+      } else {
+        console.log(`⚠️ No admin users found to notify for order ${order.orderId}`);
+      }
+    } catch (error) {
+      console.error(`❌ Failed to send SMS notifications to admins for order ${order.orderId}:`, error);
+      // Don't fail the order creation if SMS fails
+    }
+
     // Send SMS to supplier
     if (supplier && supplier.phone) {
       try {
