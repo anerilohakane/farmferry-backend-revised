@@ -110,7 +110,7 @@ const sendDeliveryCompletionToAssociate = async (req, res) => {
     return res.status(400).json({ message: "Missing required fields" });
   }
 
-  const body = `Hi ${deliveryBoyName || 'Delivery Associate'}, order ${orderId} has been marked as delivered successfully. Great job!`;
+  const body = `Hi ${deliveryBoyName || 'Delivery Associate'}, order ${orderId} has been delivered successfully. Great job!`;
 
   try {
     const message = await sendSMS(phone, body);
