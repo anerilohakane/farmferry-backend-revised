@@ -172,3 +172,4 @@ The order should now show:
 - `paymentStatus: "paid"`
 - `transactionId: "TXN_..."` (or the actual transaction ID)
 - `paymentDetails` with the payment information
+
