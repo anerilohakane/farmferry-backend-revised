@@ -1025,10 +1025,16 @@ export const assignDeliveryAssociate = asyncHandler(async (req, res) => {
   if (order.status !== "processing") {
     throw new ApiError(400, "Delivery associate can only be assigned to orders in processing status");
   }
+  
+  const deliveryAssociate = await DeliveryAssociate.findById(deliveryAssociateId);
+  if (!deliveryAssociate) {
+    throw new ApiError(404, "Delivery associate not found");
+  }
 
   // Update delivery associate
   order.deliveryAssociate = {
     associate: deliveryAssociateId,
+    name: deliveryAssociate.name,
     assignedAt: new Date(),
     status: "assigned"
   };
@@ -1236,7 +1242,7 @@ export const getMyOrders = asyncHandler(async (req, res) => {
   const orders = await Order.find(queryOptions)
     .populate("customer", "firstName lastName email phone")
     .populate("items.product", "name images price discountedPrice")
-    .populate("deliveryAssociate.associate", "firstName lastName phone")
+    .populate("deliveryAssociate.associate", "name phone")
     .sort(sortOptions)
     .skip(skip)
     .limit(parseInt(limit));
@@ -1337,6 +1343,8 @@ export const selfAssignOrder = asyncHandler(async (req, res) => {
   order.deliveryAssociate = {
     associate: req.user._id,
     assignedAt: new Date(),
+    name: req.user.name,
+
     status: "packaging" // delivery associate internal status
   };
 

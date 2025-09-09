@@ -83,7 +83,7 @@ const orderSchema = new mongoose.Schema(
     handlingFee: {
       type: Number,
       default: 0
-    },    
+    },
     deliveryCharge: {
       type: Number,
       default: 0
@@ -116,14 +116,14 @@ const orderSchema = new mongoose.Schema(
     // Order status and tracking
     status: {
       type: String,
-      enum: ["pending", "packaging", "processing","out_for_delivery", "delivered", "cancelled", "returned", "damaged"],
+      enum: ["pending", "packaging", "processing", "out_for_delivery", "delivered", "cancelled", "returned", "damaged"],
       default: "pending"
     },
     statusHistory: [
       {
         status: {
           type: String,
-          enum: ["pending","packaging", "processing", "out_for_delivery", "delivered", "cancelled", "returned", "damaged"]
+          enum: ["pending", "packaging", "processing", "out_for_delivery", "delivered", "cancelled", "returned", "damaged"]
         },
         updatedAt: {
           type: Date,
@@ -184,12 +184,15 @@ const orderSchema = new mongoose.Schema(
         type: mongoose.Schema.Types.ObjectId,
         ref: "DeliveryAssociate"
       },
+      name: {
+        type: String
+      },
       assignedAt: {
         type: Date
       },
       status: {
         type: String,
-        enum: ["packaging","assigned", "out_for_delivery", "delivered", "failed"]
+        enum: ["packaging", "assigned", "out_for_delivery", "delivered", "failed"]
       }
     },
     estimatedDeliveryDate: {
