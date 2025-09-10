@@ -298,7 +298,7 @@ export const removeCartItem = asyncHandler(async (req, res) => {
   // Populate product details
   await cart.populate({
     path: "items.product",
-    select: "name price discountedPrice images stockQuantity unit supplierId categoryId",
+    select: "name price gst discountedPrice images stockQuantity unit supplierId categoryId",
     populate: {
       path: "categoryId",
       select: "name handlingFee"
