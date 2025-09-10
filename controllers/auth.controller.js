@@ -15,58 +15,136 @@ const generateTokensAndSetCookies = async (user, res) => {
   try {
     const accessToken = user.generateAccessToken();
     const refreshToken = user.generateRefreshToken();
-    
+
     // Set cookies
     const cookieOptions = {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production' ? true : false,
     };
-    
+
     res.cookie("accessToken", accessToken, {
       ...cookieOptions,
       maxAge: 24 * 60 * 60 * 1000 // 1 day
     });
-    
+
     res.cookie("refreshToken", refreshToken, {
       ...cookieOptions,
       maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
     });
-    
+
     return { accessToken, refreshToken };
   } catch (error) {
     throw new ApiError(500, "Error generating tokens");
   }
 };
 
+
+
+export const sendLoginOtp = asyncHandler(async (req, res) => {
+  const { phone } = req.body;
+
+  if (!phone) throw new ApiError(400, "Phone number is required");
+
+  // Find or create customer
+  let customer = await Customer.findOne({ phone });
+  if (!customer) {
+    customer = await Customer.create({ phone, isPhoneVerified: false });
+  }
+
+  // Generate OTP
+  const otp = Math.floor(100000 + Math.random() * 900000).toString();
+  customer.phoneOTP = otp;
+  customer.phoneOTPExpires = Date.now() + 5 * 60 * 1000; // 5 mins
+  await customer.save({ validateBeforeSave: false });
+
+  // Send OTP via Twilio
+  await smsUtils.sendSMS(
+    phone,
+    `Your FarmFerry login OTP is: ${otp}. Valid for 5 minutes.`
+  );
+
+  return res.json(
+    new ApiResponse(200, { phone }, "OTP sent successfully")
+  );
+});
+
+
+/**
+ * Step 2: Verify OTP and login
+ */
+export const loginWithPhoneOtp = asyncHandler(async (req, res) => {
+  const { phone, otp } = req.body;
+
+  if (!phone || !otp) throw new ApiError(400, "Phone and OTP are required");
+
+  const customer = await Customer.findOne({ phone });
+  if (!customer) throw new ApiError(404, "Customer not found");
+
+  // Check OTP
+  if (
+    !customer.phoneOTP ||
+    customer.phoneOTP !== otp ||
+    customer.phoneOTPExpires < Date.now()
+  ) {
+    throw new ApiError(401, "Invalid or expired OTP");
+  }
+
+  // Mark phone as verified
+  customer.isPhoneVerified = true;
+  customer.phoneOTP = undefined;
+  customer.phoneOTPExpires = undefined;
+  customer.lastLogin = new Date();
+  await customer.save({ validateBeforeSave: false });
+
+  // Remove sensitive fields
+  const loggedInCustomer = await Customer.findById(customer._id).select(
+    "-password -passwordResetToken -passwordResetExpires"
+  );
+
+  // Generate JWT tokens
+  const { accessToken, refreshToken } = await generateTokensAndSetCookies(
+    customer,
+    res
+  );
+
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      { customer: loggedInCustomer, accessToken, refreshToken },
+      "Customer logged in successfully"
+    )
+  );
+});
+
 // Customer Registration
 // export const registerCustomer = asyncHandler(async (req, res) => {
 //   const { name, email, password, phone } = req.body;
-  
+
 //   // Validate required fields
 //   if (!name || !email || !password || !phone) {
 //     throw new ApiError(400, "Name, email, phone, and password are required");
 //   }
-  
+
 //   // Check if email already exists
 //   const existingCustomer = await Customer.findOne({ email: email.toLowerCase() });
 //   if (existingCustomer) {
 //     throw new ApiError(409, "Email is already registered");
 //   }
-  
+
 //   // Check if phone already exists
 //   const existingPhone = await Customer.findOne({ phone });
 //   if (existingPhone) {
 //     throw new ApiError(409, "Phone number is already registered");
 //   }
-  
+
 //   // Split name into firstName and lastName
 //   const nameParts = name.trim().split(' ');
 //   const firstName = nameParts[0];
 //   const lastName = nameParts.slice(1).join(' ') || '';
-  
+
 //   // Generate phone verification OTP
 //   const phoneOTP = Math.floor(100000 + Math.random() * 900000).toString();
-  
+
 //   // Create new customer with phone verification pending
 //   const customer = await Customer.create({
 //     firstName,
@@ -79,17 +157,17 @@ const generateTokensAndSetCookies = async (user, res) => {
 //     isPhoneVerified: false,
 //     lastLogin: new Date()
 //   });
-  
+
 //   // Remove sensitive fields from response
 //   const createdCustomer = await Customer.findById(customer._id).select("-password -passwordResetToken -passwordResetExpires");
-  
+
 //   if (!createdCustomer) {
 //     throw new ApiError(500, "Something went wrong while registering the customer");
 //   }
-  
+
 //   // Don't generate tokens until phone verification is complete
 //   // const { accessToken, refreshToken } = await generateTokensAndSetCookies(customer, res);
-  
+
 //   // Send welcome email
 //   try {
 //     await sendEmail({
@@ -118,7 +196,7 @@ const generateTokensAndSetCookies = async (user, res) => {
 //     console.error("Error sending phone verification OTP:", error);
 //     // Don't fail registration if SMS fails, but log it
 //   }
-  
+
 //   // Send response - require phone verification before login
 //   return res.status(201).json(
 //     new ApiResponse(
@@ -141,175 +219,175 @@ const generateTokensAndSetCookies = async (user, res) => {
 //   );
 // });
 
-export const registerCustomer = asyncHandler(async (req, res) => {
-  const { name, email, password, phone } = req.body;
-  
-  // Validate required fields
-  if (!name || !email || !password || !phone) {
-    throw new ApiError(400, "Name, email, phone, and password are required");
-  }
-  
-  // Check if email already exists
-  const existingCustomer = await Customer.findOne({ email: email.toLowerCase() });
-  if (existingCustomer) {
-    throw new ApiError(409, "Email is already registered");
-  }
-  
-  // Check if phone already exists
-  const existingPhone = await Customer.findOne({ phone });
-  if (existingPhone) {
-    throw new ApiError(409, "Phone number is already registered");
-  }
-  
-  // Split name into firstName and lastName
-  const nameParts = name.trim().split(' ');
-  const firstName = nameParts[0];
-  const lastName = nameParts.slice(1).join(' ') || '';
-  
-  // Create new customer (phone is auto-verified now)
-  const customer = await Customer.create({
-    firstName,
-    lastName,
-    email: email.toLowerCase(),
-    password,
-    phone,
-    isPhoneVerified: true,
-    lastLogin: new Date()
-  });
-  
-  // Remove sensitive fields from response
-  const createdCustomer = await Customer.findById(customer._id).select(
-    "-password -passwordResetToken -passwordResetExpires"
-  );
-  
-  if (!createdCustomer) {
-    throw new ApiError(500, "Something went wrong while registering the customer");
-  }
-  
-  // Generate tokens immediately after registration
-  const { accessToken, refreshToken } = await generateTokensAndSetCookies(customer, res);
-  
-  // Send welcome email
-  try {
-    await sendEmail({
-      to: createdCustomer.email,
-      subject: "Welcome to FarmFerry!",
-      html: `
-        <h1>Welcome, ${createdCustomer.firstName}!</h1>
-        <p>Thank you for registering with FarmFerry. We're excited to have you.</p>
-        <p>You can now browse our wide range of fresh products directly from local suppliers.</p>
-        <a href="${process.env.FRONTEND_URL}" style="display: inline-block; padding: 10px 20px; background-color: #28a745; color: #fff; text-decoration: none; border-radius: 5px;">Shop Now</a>
-      `,
-    });
-  } catch (error) {
-    console.error("Error sending welcome email:", error);
-  }
+// export const registerCustomer = asyncHandler(async (req, res) => {
+//   const { name, email, password, phone } = req.body;
 
-  // Send response
-  return res.status(201).json(
-    new ApiResponse(
-      201,
-      {
-        customer: {
-          _id: createdCustomer._id,
-          firstName: createdCustomer.firstName,
-          lastName: createdCustomer.lastName,
-          email: createdCustomer.email,
-          phone: createdCustomer.phone,
-          isPhoneVerified: createdCustomer.isPhoneVerified
-        },
-        accessToken,
-        refreshToken
-      },
-      "Customer registered successfully."
-    )
-  );
-});
+//   // Validate required fields
+//   if (!name || !email || !password || !phone) {
+//     throw new ApiError(400, "Name, email, phone, and password are required");
+//   }
+
+//   // Check if email already exists
+//   const existingCustomer = await Customer.findOne({ email: email.toLowerCase() });
+//   if (existingCustomer) {
+//     throw new ApiError(409, "Email is already registered");
+//   }
+
+//   // Check if phone already exists
+//   const existingPhone = await Customer.findOne({ phone });
+//   if (existingPhone) {
+//     throw new ApiError(409, "Phone number is already registered");
+//   }
+
+//   // Split name into firstName and lastName
+//   const nameParts = name.trim().split(' ');
+//   const firstName = nameParts[0];
+//   const lastName = nameParts.slice(1).join(' ') || '';
+
+//   // Create new customer (phone is auto-verified now)
+//   const customer = await Customer.create({
+//     firstName,
+//     lastName,
+//     email: email.toLowerCase(),
+//     password,
+//     phone,
+//     isPhoneVerified: true,
+//     lastLogin: new Date()
+//   });
+
+//   // Remove sensitive fields from response
+//   const createdCustomer = await Customer.findById(customer._id).select(
+//     "-password -passwordResetToken -passwordResetExpires"
+//   );
+
+//   if (!createdCustomer) {
+//     throw new ApiError(500, "Something went wrong while registering the customer");
+//   }
+
+//   // Generate tokens immediately after registration
+//   const { accessToken, refreshToken } = await generateTokensAndSetCookies(customer, res);
+
+//   // Send welcome email
+//   try {
+//     await sendEmail({
+//       to: createdCustomer.email,
+//       subject: "Welcome to FarmFerry!",
+//       html: `
+//         <h1>Welcome, ${createdCustomer.firstName}!</h1>
+//         <p>Thank you for registering with FarmFerry. We're excited to have you.</p>
+//         <p>You can now browse our wide range of fresh products directly from local suppliers.</p>
+//         <a href="${process.env.FRONTEND_URL}" style="display: inline-block; padding: 10px 20px; background-color: #28a745; color: #fff; text-decoration: none; border-radius: 5px;">Shop Now</a>
+//       `,
+//     });
+//   } catch (error) {
+//     console.error("Error sending welcome email:", error);
+//   }
+
+//   // Send response
+//   return res.status(201).json(
+//     new ApiResponse(
+//       201,
+//       {
+//         customer: {
+//           _id: createdCustomer._id,
+//           firstName: createdCustomer.firstName,
+//           lastName: createdCustomer.lastName,
+//           email: createdCustomer.email,
+//           phone: createdCustomer.phone,
+//           isPhoneVerified: createdCustomer.isPhoneVerified
+//         },
+//         accessToken,
+//         refreshToken
+//       },
+//       "Customer registered successfully."
+//     )
+//   );
+// });
 
 
 // Customer Login
-export const loginCustomer = asyncHandler(async (req, res) => {
-  const { email, password } = req.body;
-  
-  // Validate required fields
-  if (!email || !password) {
-    throw new ApiError(400, "Email and password are required");
-  }
-  
-  // Find customer
-  const customer = await Customer.findOne({ email: email.toLowerCase() });
-  if (!customer) {
-    throw new ApiError(404, "Customer not found");
-  }
-  
-  // Verify password
-  const isPasswordValid = await customer.isPasswordCorrect(password);
-  if (!isPasswordValid) {
-    throw new ApiError(401, "Invalid credentials");
-  }
-  
-  // Check if phone is verified
-  if (!customer.isPhoneVerified) {
-    // Generate new OTP if needed
-    if (!customer.phoneOTP || customer.phoneOTPExpires < Date.now()) {
-      const phoneOTP = Math.floor(100000 + Math.random() * 900000).toString();
-      customer.phoneOTP = phoneOTP;
-      customer.phoneOTPExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
-      await customer.save({ validateBeforeSave: false });
-      
-      // Try to send SMS
-      try {
-        await smsUtils.sendSMS(
-          customer.phone,
-          `Your FarmFerry verification OTP is: ${phoneOTP}. Valid for 10 minutes.`
-        );
-      } catch (error) {
-        console.error("Error sending verification SMS:", error);
-      }
-    }
-    
-    return res.status(403).json(
-      new ApiResponse(
-        403,
-        {
-          customer: {
-            _id: customer._id,
-            firstName: customer.firstName,
-            lastName: customer.lastName,
-            email: customer.email,
-            phone: customer.phone,
-            isPhoneVerified: customer.isPhoneVerified
-          },
-          requiresPhoneVerification: true
-        },
-        "Phone verification required. Please verify your phone number with the OTP sent to your mobile."
-      )
-    );
-  }
-  
-  // Update last login
-  customer.lastLogin = new Date();
-  await customer.save();
-  
-  // Get customer without sensitive fields
-  const loggedInCustomer = await Customer.findById(customer._id).select("-password -passwordResetToken -passwordResetExpires");
-  
-  // Generate tokens
-  const { accessToken, refreshToken } = await generateTokensAndSetCookies(customer, res);
-  
-  // Send response
-  return res.status(200).json(
-    new ApiResponse(
-      200,
-      {
-        customer: loggedInCustomer,
-        accessToken,
-        refreshToken
-      },
-      "Customer logged in successfully"
-    )
-  );
-});
+// export const loginCustomer = asyncHandler(async (req, res) => {
+//   const { email, password } = req.body;
+
+//   // Validate required fields
+//   if (!email || !password) {
+//     throw new ApiError(400, "Email and password are required");
+//   }
+
+//   // Find customer
+//   const customer = await Customer.findOne({ email: email.toLowerCase() });
+//   if (!customer) {
+//     throw new ApiError(404, "Customer not found");
+//   }
+
+//   // Verify password
+//   const isPasswordValid = await customer.isPasswordCorrect(password);
+//   if (!isPasswordValid) {
+//     throw new ApiError(401, "Invalid credentials");
+//   }
+
+//   // Check if phone is verified
+//   if (!customer.isPhoneVerified) {
+//     // Generate new OTP if needed
+//     if (!customer.phoneOTP || customer.phoneOTPExpires < Date.now()) {
+//       const phoneOTP = Math.floor(100000 + Math.random() * 900000).toString();
+//       customer.phoneOTP = phoneOTP;
+//       customer.phoneOTPExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
+//       await customer.save({ validateBeforeSave: false });
+
+//       // Try to send SMS
+//       try {
+//         await smsUtils.sendSMS(
+//           customer.phone,
+//           `Your FarmFerry verification OTP is: ${phoneOTP}. Valid for 10 minutes.`
+//         );
+//       } catch (error) {
+//         console.error("Error sending verification SMS:", error);
+//       }
+//     }
+
+//     return res.status(403).json(
+//       new ApiResponse(
+//         403,
+//         {
+//           customer: {
+//             _id: customer._id,
+//             firstName: customer.firstName,
+//             lastName: customer.lastName,
+//             email: customer.email,
+//             phone: customer.phone,
+//             isPhoneVerified: customer.isPhoneVerified
+//           },
+//           requiresPhoneVerification: true
+//         },
+//         "Phone verification required. Please verify your phone number with the OTP sent to your mobile."
+//       )
+//     );
+//   }
+
+//   // Update last login
+//   customer.lastLogin = new Date();
+//   await customer.save();
+
+//   // Get customer without sensitive fields
+//   const loggedInCustomer = await Customer.findById(customer._id).select("-password -passwordResetToken -passwordResetExpires");
+
+//   // Generate tokens
+//   const { accessToken, refreshToken } = await generateTokensAndSetCookies(customer, res);
+
+//   // Send response
+//   return res.status(200).json(
+//     new ApiResponse(
+//       200,
+//       {
+//         customer: loggedInCustomer,
+//         accessToken,
+//         refreshToken
+//       },
+//       "Customer logged in successfully"
+//     )
+//   );
+// });
 
 // Admin Registration
 // Admin Registration
@@ -364,25 +442,25 @@ export const registerAdmin = asyncHandler(async (req, res) => {
 
 // Supplier Registration
 export const registerSupplier = asyncHandler(async (req, res) => {
-  const { 
-    businessName, 
-    ownerName, 
-    email, 
-    password, 
-    phone, 
+  const {
+    businessName,
+    ownerName,
+    email,
+    password,
+    phone,
     businessType,
     address
   } = req.body;
   console.log(req.body);
   // Validate required fields
-  
-  
+
+
   // Check if email already exists
   const existingSupplier = await Supplier.findOne({ email: email.toLowerCase() });
   if (existingSupplier) {
     throw new ApiError(409, "Email is already registered");
   }
-  
+
   // Create new supplier
   const supplier = await Supplier.create({
     businessName,
@@ -395,17 +473,17 @@ export const registerSupplier = asyncHandler(async (req, res) => {
     status: "pending",
     lastLogin: new Date()
   });
-  
+
   // Remove sensitive fields from response
   const createdSupplier = await Supplier.findById(supplier._id).select("-password -passwordResetToken -passwordResetExpires");
-  
+
   if (!createdSupplier) {
     throw new ApiError(500, "Something went wrong while registering the supplier");
   }
-  
+
   // Generate tokens
   const { accessToken, refreshToken } = await generateTokensAndSetCookies(supplier, res);
-  
+
   // Send response
   return res.status(201).json(
     new ApiResponse(
@@ -423,34 +501,34 @@ export const registerSupplier = asyncHandler(async (req, res) => {
 // Supplier Login
 export const loginSupplier = asyncHandler(async (req, res) => {
   const { email, password } = req.body;
-  
+
   // Validate required fields
   if (!email || !password) {
     throw new ApiError(400, "Email and password are required");
   }
-  
+
   // Find supplier
   const supplier = await Supplier.findOne({ email: email.toLowerCase() });
   if (!supplier) {
     throw new ApiError(404, "Supplier not found");
   }
-  
+
   // Verify password
   const isPasswordValid = await supplier.isPasswordCorrect(password);
   if (!isPasswordValid) {
     throw new ApiError(401, "Invalid credentials");
   }
-  
+
   // Update last login
   supplier.lastLogin = new Date();
   await supplier.save();
-  
+
   // Get supplier without sensitive fields
   const loggedInSupplier = await Supplier.findById(supplier._id).select("-password -passwordResetToken -passwordResetExpires");
-  
+
   // Generate tokens
   const { accessToken, refreshToken } = await generateTokensAndSetCookies(supplier, res);
-  
+
   // Send response
   return res.status(200).json(
     new ApiResponse(
@@ -468,34 +546,34 @@ export const loginSupplier = asyncHandler(async (req, res) => {
 // Admin Login
 export const loginAdmin = asyncHandler(async (req, res) => {
   const { email, password } = req.body;
-  
+
   // Validate required fields
   if (!email || !password) {
     throw new ApiError(400, "Email and password are required");
   }
-  
+
   // Find admin
   const admin = await Admin.findOne({ email: email.toLowerCase() });
   if (!admin) {
     throw new ApiError(404, "Admin not found");
   }
-  
+
   // Verify password
   const isPasswordValid = await admin.isPasswordCorrect(password);
   if (!isPasswordValid) {
     throw new ApiError(401, "Invalid credentials");
   }
-  
+
   // Update last login
   admin.lastLogin = new Date();
   await admin.save();
-  
+
   // Get admin without sensitive fields
   const loggedInAdmin = await Admin.findById(admin._id).select("-password -passwordResetToken -passwordResetExpires");
-  
+
   // Generate tokens
   const { accessToken, refreshToken } = await generateTokensAndSetCookies(admin, res);
-  
+
   // Send response
   return res.status(200).json(
     new ApiResponse(
@@ -515,7 +593,7 @@ export const logout = asyncHandler(async (req, res) => {
   // Clear cookies
   res.clearCookie("accessToken");
   res.clearCookie("refreshToken");
-  
+
   // Send response
   return res.status(200).json(
     new ApiResponse(
@@ -530,15 +608,15 @@ export const logout = asyncHandler(async (req, res) => {
 export const refreshAccessToken = asyncHandler(async (req, res) => {
   // Get refresh token from cookies
   const incomingRefreshToken = req.cookies?.refreshToken || req.body.refreshToken;
-  
+
   if (!incomingRefreshToken) {
     throw new ApiError(401, "Unauthorized request");
   }
-  
+
   try {
     // Verify refresh token
     const decodedToken = jwt.verify(incomingRefreshToken, process.env.REFRESH_TOKEN_SECRET);
-    
+
     // Find user
     let user;
     if (req.body.role === "admin") {
@@ -548,14 +626,14 @@ export const refreshAccessToken = asyncHandler(async (req, res) => {
     } else {
       user = await Customer.findById(decodedToken.id);
     }
-    
+
     if (!user) {
       throw new ApiError(401, "Invalid refresh token");
     }
-    
+
     // Generate new tokens
     const { accessToken, refreshToken } = await generateTokensAndSetCookies(user, res);
-    
+
     // Send response
     return res.status(200).json(
       new ApiResponse(
@@ -572,11 +650,11 @@ export const refreshAccessToken = asyncHandler(async (req, res) => {
 // Forgot Password
 export const forgotPassword = asyncHandler(async (req, res) => {
   const { email, role = "customer" } = req.body;
-  
+
   if (!email) {
     throw new ApiError(400, "Email is required");
   }
-  
+
   // Find user based on role
   let user;
   if (role === "admin") {
@@ -586,11 +664,11 @@ export const forgotPassword = asyncHandler(async (req, res) => {
   } else {
     user = await Customer.findOne({ email: email.toLowerCase() });
   }
-  
+
   if (!user) {
     throw new ApiError(404, "User not found");
   }
-  
+
   // Generate reset token or OTP based on role
   if (role === "customer") {
     // For customers, generate OTP
@@ -613,7 +691,7 @@ export const forgotPassword = asyncHandler(async (req, res) => {
       console.error("Error sending password reset OTP email:", error);
       throw new ApiError(500, "There was an error sending the email. Please try again later.");
     }
-    
+
     // Send response
     return res.status(200).json(
       new ApiResponse(
@@ -626,7 +704,7 @@ export const forgotPassword = asyncHandler(async (req, res) => {
     // For admin and supplier, use token (existing logic)
     const resetToken = user.generatePasswordResetToken();
     await user.save({ validateBeforeSave: false });
-    
+
     // Create reset URL
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
     const resetURL = `${frontendUrl}/reset-password/${resetToken}`;
@@ -647,7 +725,7 @@ export const forgotPassword = asyncHandler(async (req, res) => {
       console.error("Error sending password reset email:", error);
       throw new ApiError(500, "There was an error sending the email. Please try again later.");
     }
-    
+
     // Send response
     return res.status(200).json(
       new ApiResponse(
@@ -663,29 +741,29 @@ export const forgotPassword = asyncHandler(async (req, res) => {
 export const resetPassword = asyncHandler(async (req, res) => {
   const { token } = req.params;
   const { password, role = "customer", otp } = req.body;
-  
+
   if (role === "customer") {
     // For customers, use OTP
     if (!otp || !password) {
       throw new ApiError(400, "OTP and password are required");
     }
-    
+
     // Find customer with valid OTP
     const user = await Customer.findOne({
       passwordResetOTP: otp,
       passwordResetOTPExpires: { $gt: Date.now() }
     });
-    
+
     if (!user) {
       throw new ApiError(400, "OTP is invalid or has expired");
     }
-    
+
     // Update password and clear OTP
     user.password = password;
     user.passwordResetOTP = undefined;
     user.passwordResetOTPExpires = undefined;
     await user.save();
-    
+
     // Send response
     return res.status(200).json(
       new ApiResponse(
@@ -699,13 +777,13 @@ export const resetPassword = asyncHandler(async (req, res) => {
     if (!token || !password) {
       throw new ApiError(400, "Token and password are required");
     }
-    
+
     // Hash the token
     const hashedToken = crypto
       .createHash("sha256")
       .update(token)
       .digest("hex");
-    
+
     // Find user based on role
     let user;
     if (role === "admin") {
@@ -719,17 +797,17 @@ export const resetPassword = asyncHandler(async (req, res) => {
         passwordResetExpires: { $gt: Date.now() }
       });
     }
-    
+
     if (!user) {
       throw new ApiError(400, "Token is invalid or has expired");
     }
-    
+
     // Update password
     user.password = password;
     user.passwordResetToken = undefined;
     user.passwordResetExpires = undefined;
     await user.save();
-    
+
     // Send response
     return res.status(200).json(
       new ApiResponse(
@@ -744,28 +822,28 @@ export const resetPassword = asyncHandler(async (req, res) => {
 // Reset Password with OTP (for customers)
 export const resetPasswordWithOTP = asyncHandler(async (req, res) => {
   const { email, otp, password } = req.body;
-  
+
   if (!email || !otp || !password) {
     throw new ApiError(400, "Email, OTP and password are required");
   }
-  
+
   // Find customer with valid OTP
   const user = await Customer.findOne({
     email: email.toLowerCase(),
     passwordResetOTP: otp,
     passwordResetOTPExpires: { $gt: Date.now() }
   });
-  
+
   if (!user) {
     throw new ApiError(400, "OTP is invalid or has expired");
   }
-  
+
   // Update password and clear OTP
   user.password = password;
   user.passwordResetOTP = undefined;
   user.passwordResetOTPExpires = undefined;
   await user.save();
-  
+
   // Send response
   return res.status(200).json(
     new ApiResponse(
@@ -859,24 +937,24 @@ export const verifyPhone = asyncHandler(async (req, res) => {
 // Change Password
 export const changePassword = asyncHandler(async (req, res) => {
   const { currentPassword, newPassword } = req.body;
-  
+
   if (!currentPassword || !newPassword) {
     throw new ApiError(400, "Current password and new password are required");
   }
-  
+
   // Get user from request
   const user = await req.user.constructor.findById(req.user._id);
-  
+
   // Verify current password
   const isPasswordValid = await user.isPasswordCorrect(currentPassword);
   if (!isPasswordValid) {
     throw new ApiError(401, "Current password is incorrect");
   }
-  
+
   // Update password
   user.password = newPassword;
   await user.save();
-  
+
   // Send response
   return res.status(200).json(
     new ApiResponse(
@@ -998,7 +1076,7 @@ export const verifyPhoneOTP = asyncHandler(async (req, res) => {
     await customer.save({ validateBeforeSave: false });
 
     return res.status(200).json(
-      new ApiResponse(200, { 
+      new ApiResponse(200, {
         user: customer,
         userType: "customer"
       }, "Phone number verified successfully")
@@ -1019,7 +1097,7 @@ export const verifyPhoneOTP = asyncHandler(async (req, res) => {
     await deliveryAssociate.save({ validateBeforeSave: false });
 
     return res.status(200).json(
-      new ApiResponse(200, { 
+      new ApiResponse(200, {
         user: deliveryAssociate,
         userType: "deliveryAssociate"
       }, "Phone number verified successfully")

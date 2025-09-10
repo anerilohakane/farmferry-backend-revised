@@ -1,7 +1,7 @@
 import { Router } from "express";
 import {
-  registerCustomer,
-  loginCustomer,
+  //registerCustomer,
+  //loginCustomer,
   logout,
   refreshAccessToken,
   changePassword,
@@ -23,19 +23,27 @@ import {
   loginDeliveryAssociate,
   getDeliveryAssociateMe,
   loginSupplier,
-  loginAdmin
+  loginAdmin,
+  loginWithPhoneOtp,
+  sendLoginOtp
 } from "../controllers/auth.controller.js";
 import { upload } from "../middlewares/multer.middleware.js";
 import { verifyJWT } from "../middlewares/auth.middleware.js";
 
+
 const router = Router();
 
 // ================== PUBLIC ROUTES (No JWT required) ==================
-router.post("/register", registerCustomer);
-router.post("/register/customer", registerCustomer);
+//router.post("/register", registerCustomer);
+//router.post("/register/customer", registerCustomer);
 router.post("/login", login);
+
+// OTP-based customer login
+router.post("/send-customer-otp", sendLoginOtp);   // Step 1: send OTP
+router.post("/login/customer-otp", loginWithPhoneOtp); // Step 2: verify OTP & login
+
 router.post("/login/admin", loginAdmin);
-router.post("/login/customer", loginCustomer);
+//router.post("/login/customer", loginCustomer);
 router.post("/login/supplier", loginSupplier);
 router.post("/login/delivery-associate", loginDeliveryAssociate);
 router.post("/refresh-token", refreshAccessToken);
