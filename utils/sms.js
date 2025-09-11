@@ -4,7 +4,7 @@ import DeliveryAssociate from "../models/deliveryAssociate.model.js";
 
 // Directly include Twilio credentials
 const accountSid = "ACb601d064c2bec8d3189cea9e6f8c7c34";
-const authToken = "7ea981c7bbcdf49c5176ac1041758a36";
+const authToken = "7a8c57bb7ac5529438c594a4c8df0ca9";
 const twilioPhoneNumber = "+19342252156";
 
 const client = twilio(accountSid, authToken);
