@@ -44,8 +44,23 @@ const sendSMS = async (to, body) => {
   try {
     // Format phone number to international format
     const formattedPhone = formatPhoneNumber(to);
-    console.log(`📱 Twilio: Original phone: ${to}, Formatted: ${formattedPhone}`);
-    console.log(`📱 Twilio: Message body: ${body}`);
+    console.log(`📱 SMS: Original phone: ${to}, Formatted: ${formattedPhone}`);
+    console.log(`📱 SMS: Message body: ${body}`);
+
+    // Check if SMS should be skipped (development mode)
+    if (process.env.SMS_SKIP === 'true') {
+      console.log(`🚫 SMS SKIPPED (SMS_SKIP=true): Would send to ${formattedPhone}`);
+      console.log(`📝 SMS Content: ${body}`);
+      
+      // Return a mock message object for development
+      return {
+        sid: `mock_${Date.now()}`,
+        to: formattedPhone,
+        from: twilioPhoneNumber,
+        body: body,
+        status: 'delivered'
+      };
+    }
 
     const message = await client.messages.create({
       body,
@@ -71,7 +86,9 @@ const sendSMS = async (to, body) => {
   }
 };
 
-
+/**
+ * Send delivery confirmation to customer
+ */
 const sendDeliveryConfirmationToCustomer = async (req, res) => {
   const { phone, customerName, orderId } = req.body;
 
@@ -193,14 +210,8 @@ const sendOrderSMS = async (req, res) => {
   const body = `Hi ${customerName}, your order (ID: ${orderId}) has been placed successfully. Thank you!`;
 
   try {
-    const formattedPhone = formatPhoneNumber(phone);
-    await client.messages.create({
-      body,
-      from: twilioPhoneNumber,
-      to: formattedPhone,
-    });
-
-    res.json({ message: "Order confirmation SMS sent successfully" });
+    const message = await sendSMS(phone, body);
+    res.json({ message: "Order confirmation SMS sent successfully", sid: message.sid });
   } catch (error) {
     console.error("Error sending order confirmation SMS:", error);
     res.status(500).json({ message: "Failed to send SMS" });
@@ -232,15 +243,10 @@ const sendOTP = async (req, res) => {
       { upsert: true, new: true }
     );
 
-    // Send OTP via SMS
-    const formattedPhone = formatPhoneNumber(phone);
-    await client.messages.create({
-      body: `Your delivery confirmation OTP is: ${otp}`,
-      from: twilioPhoneNumber,
-      to: formattedPhone,
-    });
+    // Send OTP via SMS using the sendSMS helper
+    const message = await sendSMS(phone, `Your delivery confirmation OTP is: ${otp}`);
 
-    res.json({ message: "OTP sent successfully" });
+    res.json({ message: "OTP sent successfully", sid: message.sid });
   } catch (error) {
     console.error("Error sending OTP:", error);
     res.status(500).json({ message: "Failed to send OTP" });
