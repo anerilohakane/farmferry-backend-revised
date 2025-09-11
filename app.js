@@ -54,6 +54,9 @@ app.use(cors({
     'http://localhost:3004',
     'http://localhost:3005',
     'http://localhost:3006',
+    'farmferry.in',
+    'https://www.farmferry.in/',
+    'https://farmferry.in/',
   ],
   credentials: true
 }));
