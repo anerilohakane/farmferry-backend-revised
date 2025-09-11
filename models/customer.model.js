@@ -5,6 +5,11 @@ import crypto from "crypto";
 
 // Address Schema for multiple addresses
 const addressSchema = new mongoose.Schema({
+  name: {
+    type: String,
+    required: [true, "Name is required"],
+    trim: true,
+  },
   type: { 
     type: String, 
     enum: ["home", "work", "other"], 
