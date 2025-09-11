@@ -3,9 +3,9 @@ import Customer from "../models/customer.model.js";
 import DeliveryAssociate from "../models/deliveryAssociate.model.js";
 
 // Directly include Twilio credentials
-const accountSid = "ACb963d22e66c7e7b9dbac6cfad10a405a";
-const authToken = "1f6bfe7fea07d7d3005d4a1d10bb0fc4";
-const twilioPhoneNumber = "+16824705397";
+const accountSid = "ACb601d064c2bec8d3189cea9e6f8c7c34";
+const authToken = "7ea981c7bbcdf49c5176ac1041758a36";
+const twilioPhoneNumber = "+19342252156";
 
 const client = twilio(accountSid, authToken);
 
@@ -227,7 +227,7 @@ const sendOTP = async (req, res) => {
       {
         phone,
         otp,
-        otpExpiry: new Date(Date.now() + 5 * 60 * 1000), // expires in 5 mins
+        otpExpiry: new Date(Date.now() + 30 * 1000 )  // 30 seconds
       },
       { upsert: true, new: true }
     );
