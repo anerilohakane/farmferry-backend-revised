@@ -252,7 +252,11 @@ export const getAssignedOrders = asyncHandler(async (req, res) => {
   
   // Get orders with pagination
   const orders = await Order.find(queryOptions)
-    .populate("customer", "firstName lastName phone address")
+  .populate({
+    path: "customer",
+    select: "firstName lastName email phone",
+    populate: { path: "addresses", select: "name type" }
+  })
     .populate("supplier", "businessName phone address")
     .populate("items.product", "name images")
     .sort(sortOptions)

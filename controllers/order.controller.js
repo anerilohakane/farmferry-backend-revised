@@ -770,7 +770,7 @@ export const getAllOrders = asyncHandler(async (req, res) => {
 
   // Get orders with pagination
   const orders = await Order.find(queryOptions)
-    .populate("customer", "firstName lastName email phone")
+    .populate("customer", "firstName lastName email phone addresses")
     .populate("supplier", "businessName address")
     .populate("items.product", "name images")
     .sort(sortOptions)
@@ -1025,7 +1025,7 @@ export const assignDeliveryAssociate = asyncHandler(async (req, res) => {
   if (order.status !== "processing") {
     throw new ApiError(400, "Delivery associate can only be assigned to orders in processing status");
   }
-  
+
   const deliveryAssociate = await DeliveryAssociate.findById(deliveryAssociateId);
   if (!deliveryAssociate) {
     throw new ApiError(404, "Delivery associate not found");
@@ -1301,7 +1301,11 @@ export const getAvailableOrdersForDelivery = asyncHandler(async (req, res) => {
       { "deliveryAssociate.associate": null }
     ]
   })
-    .populate("customer", "firstName lastName email phone")
+    .populate({
+      path: "customer",
+      select: "firstName lastName email phone",
+      populate: { path: "addresses", select: "name type" }
+    })
     .populate("supplier", "businessName address")
     .populate("items.product", "name images");
 
