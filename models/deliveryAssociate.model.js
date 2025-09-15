@@ -143,16 +143,6 @@ const deliveryAssociateSchema = new mongoose.Schema(
     passwordResetExpires: {
       type: Date
     },
-    phoneOTP: {
-      type: String
-    },
-    phoneOTPExpires: {
-      type: Date
-    },
-    isPhoneVerified: {
-      type: Boolean,
-      default: false
-    },
     lastLogin: {
       type: Date
     },

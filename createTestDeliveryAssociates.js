@@ -87,4 +87,4 @@ const createTestDeliveryAssociates = async () => {
   }
 };
 
-createTestDeliveryAssociates(); 
+createTestDeliveryAssociates();
