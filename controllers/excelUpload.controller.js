@@ -6,10 +6,11 @@ import { ApiError } from '../utils/ApiError.js';
 import { ApiResponse } from '../utils/ApiResponse.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { generateProductTemplate, parseExcelFile } from '../utils/excelUtils.js';
-import { processProductImages } from '../utils/imageUtils.js';
+// import { processProductImages } from '../utils/imageUtils.js';
 import mongoose from 'mongoose';
 import { validateProductData} from '../utils/uploadValidation.js';
 import { processProductsInBatches}  from '../services/product.service.js';
+import { processProductImages, getCategoryImage } from '../utils/imageUtils.js';
 // import Category from '../models/category.model.js';
 // import validateExcelStructure}
 // Generate Excel template
@@ -95,19 +96,42 @@ export  const parseExcelUpload = asyncHandler(async (req, res) => {
         const { errors, validatedData } = await validateProductData(productData, supplierId);
         
         // Process images
-        let images = [];
-        if (errors.length === 0) {
-          try {
-            images = await processProductImages(
-              productData.images || [], 
-              !!validatedData._id,
-              validatedData._id
-            );
-          } catch (imageError) {
-            errors.push(`Failed to process images: ${imageError.message}`);
-          }
-        }
-        
+        // Process images with category fallback
+let images = [];
+if (errors.length === 0) {
+  try {
+    images = await processProductImages(
+      productData.images || [], 
+      !!validatedData._id,
+      validatedData._id,
+      validatedData.categoryId // Pass categoryId for fallback
+    );
+  } catch (imageError) {
+    errors.push(`Failed to process images: ${imageError.message}`);
+    
+    // Fallback to category image even if processing fails
+    try {
+      const categoryImage = await getCategoryImage(validatedData.categoryId);
+      images = [categoryImage];
+      errors.pop(); // Remove the image error since we have a fallback
+    } catch (fallbackError) {
+      // If category image also fails, keep the original error
+      console.error('Category image fallback also failed:', fallbackError.message);
+    }
+  }
+} else {
+  // Even for invalid products, try to set a default image for preview
+  try {
+    const categoryImage = await getCategoryImage(validatedData.categoryId);
+    images = [categoryImage];
+  } catch (error) {
+    images = [{
+      url: '/default-product.jpg',
+      publicId: `default-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      isMain: true
+    }];
+  }
+}
         // Determine if this is an update
         const isUpdate = !!validatedData._id && mongoose.Types.ObjectId.isValid(validatedData._id);
         
