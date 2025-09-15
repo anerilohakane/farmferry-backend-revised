@@ -25,7 +25,9 @@ import {
   loginSupplier,
   loginAdmin,
   loginWithPhoneOtp,
-  sendLoginOtp
+  sendLoginOtp,
+  sendDeliveryAssociateLoginOtp,
+  loginDeliveryAssociateWithPhoneOtp
 } from "../controllers/auth.controller.js";
 import { upload } from "../middlewares/multer.middleware.js";
 import { verifyJWT } from "../middlewares/auth.middleware.js";
@@ -41,6 +43,10 @@ router.post("/login", login);
 // OTP-based customer login
 router.post("/send-customer-otp", sendLoginOtp);   // Step 1: send OTP
 router.post("/login/customer-otp", loginWithPhoneOtp); // Step 2: verify OTP & login
+
+// OTP-based delivery associate login
+router.post("/send-delivery-associate-login-otp", sendDeliveryAssociateLoginOtp);   // Step 1: send OTP
+router.post("/login/delivery-associate-otp", loginDeliveryAssociateWithPhoneOtp); // Step 2: verify OTP & login
 
 router.post("/login/admin", loginAdmin);
 //router.post("/login/customer", loginCustomer);

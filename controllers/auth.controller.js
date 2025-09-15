@@ -1107,6 +1107,100 @@ export const verifyPhoneOTP = asyncHandler(async (req, res) => {
   throw new ApiError(400, "Invalid OTP or OTP has expired");
 });
 
+// Send Login OTP for Delivery Associate
+export const sendDeliveryAssociateLoginOtp = asyncHandler(async (req, res) => {
+  const { phone } = req.body;
+
+  if (!phone) throw new ApiError(400, "Phone number is required");
+
+  // Find or create delivery associate
+  let deliveryAssociate = await DeliveryAssociate.findOne({ phone });
+  if (!deliveryAssociate) {
+    // Create new delivery associate with minimal required fields
+    deliveryAssociate = await DeliveryAssociate.create({
+      phone,
+      name: "Delivery Associate", // Default name, can be updated later
+      email: `delivery_${phone}@farmferry.com`, // Generate email from phone
+      password: "temp123", // Temporary password, will be hashed by model
+      isPhoneVerified: false,
+      address: {
+        street: "Not provided",
+        city: "Not provided", 
+        state: "Not provided",
+        postalCode: "000000",
+        country: "India"
+      }
+    });
+  }
+
+  // Generate OTP
+  const otp = Math.floor(100000 + Math.random() * 900000).toString();
+  deliveryAssociate.phoneOTP = otp;
+  deliveryAssociate.phoneOTPExpires = Date.now() + 5 * 60 * 1000; // 5 mins
+  await deliveryAssociate.save({ validateBeforeSave: false });
+
+  // Send OTP via Twilio
+  await smsUtils.sendSMS(
+    phone,
+    `Your FarmFerry delivery associate login OTP is: ${otp}. Valid for 5 minutes.`
+  );
+
+  return res.json(
+    new ApiResponse(200, { phone }, "OTP sent successfully")
+  );
+});
+
+// Login with Phone OTP for Delivery Associate
+export const loginDeliveryAssociateWithPhoneOtp = asyncHandler(async (req, res) => {
+  const { phone, otp } = req.body;
+
+  if (!phone || !otp) throw new ApiError(400, "Phone and OTP are required");
+
+  const deliveryAssociate = await DeliveryAssociate.findOne({ phone });
+  if (!deliveryAssociate) throw new ApiError(404, "Delivery associate not found");
+
+  // Check OTP
+  if (
+    !deliveryAssociate.phoneOTP ||
+    deliveryAssociate.phoneOTP !== otp ||
+    deliveryAssociate.phoneOTPExpires < Date.now()
+  ) {
+    throw new ApiError(401, "Invalid or expired OTP");
+  }
+
+  // Mark phone as verified and clear OTP
+  deliveryAssociate.isPhoneVerified = true;
+  deliveryAssociate.phoneOTP = undefined;
+  deliveryAssociate.phoneOTPExpires = undefined;
+  deliveryAssociate.lastLogin = new Date();
+  await deliveryAssociate.save({ validateBeforeSave: false });
+
+  // Generate JWT tokens
+  const { accessToken, refreshToken } = await generateTokensAndSetCookies(
+    deliveryAssociate,
+    res
+  );
+
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      {
+        user: {
+          _id: deliveryAssociate._id,
+          name: deliveryAssociate.name,
+          email: deliveryAssociate.email,
+          phone: deliveryAssociate.phone,
+          isVerified: deliveryAssociate.isVerified,
+          vehicle: deliveryAssociate.vehicle,
+        },
+        token: accessToken,
+        refreshToken,
+      },
+      "Delivery associate logged in successfully"
+    )
+  );
+});
+
 export const getCurrentUser = asyncHandler(async (req, res) => {
   if (!req.user || !req.user._id) {
     throw new ApiError(401, "User not authenticated");
