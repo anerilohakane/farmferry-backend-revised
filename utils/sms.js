@@ -6,6 +6,7 @@ import DeliveryAssociate from "../models/deliveryAssociate.model.js";
 const accountSid = "ACb963d22e66c7e7b9dbac6cfad10a405a";
 const authToken = "e0addb0f88d6e61e2402119f8d3a5543";
 const twilioPhoneNumber = "+16824705397";
+const twilioWhatsappNumber="whatsapp:+14155238886";
 
 const client = twilio(accountSid, authToken);
 
@@ -85,6 +86,51 @@ const sendSMS = async (to, body) => {
     throw new Error(`Twilio SMS failed: ${error.message}`);
   }
 };
+
+/**
+ * Send WhatsApp message to customer
+ * @param {string} to - Customer phone number
+ * @param {string} body - WhatsApp message content
+ */
+const sendSmsThroughWhatsapp = async (to, body) => {
+  try {
+    // Format phone number to international format
+    const formattedPhone = formatPhoneNumber(to);
+    const whatsappTo = `whatsapp:${formattedPhone}`;
+    const whatsappFrom = twilioWhatsappNumber; // ✅ from .env now
+
+    console.log(`📱 WhatsApp: Sending to ${whatsappTo}`);
+    console.log(`📱 WhatsApp: Message body: ${body}`);
+
+    // Skip in dev mode
+    if (process.env.SMS_SKIP === 'true') {
+      console.log(`🚫 WhatsApp SKIPPED (SMS_SKIP=true): Would send to ${whatsappTo}`);
+      return {
+        sid: `mock_${Date.now()}`,
+        to: whatsappTo,
+        from: whatsappFrom,
+        body,
+        status: "delivered"
+      };
+    }
+
+    const message = await client.messages.create({
+      body,
+      from: whatsappFrom,
+      to: whatsappTo,
+    });
+
+    console.log(`✅ Twilio: WhatsApp message sent successfully to ${whatsappTo}`);
+    console.log(`✅ Twilio: Message SID: ${message.sid}`);
+
+    return message;
+  } catch (error) {
+    console.error("❌ Twilio WhatsApp Error:", error.message);
+    throw new Error(`Twilio WhatsApp failed: ${error.message}`);
+  }
+};
+
+
 
 /**
  * Send delivery confirmation to customer
@@ -259,5 +305,6 @@ export default {
   sendOTP,
   sendNewOrderToDeliveryBoys,
   sendDeliveryCompletionToAssociate,
-  sendDeliveryConfirmationToCustomer
+  sendDeliveryConfirmationToCustomer,
+  sendSmsThroughWhatsapp
 };

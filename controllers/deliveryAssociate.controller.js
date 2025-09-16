@@ -19,11 +19,11 @@ import Customer from '../models/customer.model.js';
 export const getDeliveryAssociateProfile = asyncHandler(async (req, res) => {
   const deliveryAssociate = await DeliveryAssociate.findById(req.user._id)
     .select("-password -passwordResetToken -passwordResetExpires");
-  
+
   if (!deliveryAssociate) {
     throw new ApiError(404, "Delivery associate not found");
   }
-  
+
   return res.status(200).json(
     new ApiResponse(
       200,
@@ -35,47 +35,47 @@ export const getDeliveryAssociateProfile = asyncHandler(async (req, res) => {
 
 // Update delivery associate profile
 export const updateDeliveryAssociateProfile = asyncHandler(async (req, res) => {
-  const { 
+  const {
     name,
     phone,
     email,
     address
   } = req.body;
-  
+
   const updateFields = {};
-  
+
   if (name) updateFields.name = name;
   if (phone) updateFields.phone = phone;
   if (email) updateFields.email = email;
   if (address) updateFields.address = address;
-  
+
   // Handle profile image upload
   if (req.file) {
     const profileImage = await uploadToCloudinary(req.file.path, "delivery-associates");
-    
+
     if (profileImage) {
       // Delete old image if exists
       if (req.user.profileImage?.publicId) {
         await deleteFromCloudinary(req.user.profileImage.publicId);
       }
-      
+
       updateFields.profileImage = {
         url: profileImage.secure_url,
         publicId: profileImage.public_id
       };
     }
   }
-  
+
   const updatedDeliveryAssociate = await DeliveryAssociate.findByIdAndUpdate(
     req.user._id,
     { $set: updateFields },
     { new: true }
   ).select("-password -passwordResetToken -passwordResetExpires");
-  
+
   if (!updatedDeliveryAssociate) {
     throw new ApiError(404, "Delivery associate not found");
   }
-  
+
   return res.status(200).json(
     new ApiResponse(
       200,
@@ -87,30 +87,30 @@ export const updateDeliveryAssociateProfile = asyncHandler(async (req, res) => {
 
 // Update vehicle details
 export const updateVehicleDetails = asyncHandler(async (req, res) => {
-  const { 
+  const {
     vehicleType,
     vehicleNumber,
     vehicleModel,
     vehicleColor
   } = req.body;
-  
+
   const updateFields = {
     "vehicle.type": vehicleType,
     "vehicle.number": vehicleNumber,
     "vehicle.model": vehicleModel,
     "vehicle.color": vehicleColor
   };
-  
+
   const updatedDeliveryAssociate = await DeliveryAssociate.findByIdAndUpdate(
     req.user._id,
     { $set: updateFields },
     { new: true }
   ).select("-password -passwordResetToken -passwordResetExpires");
-  
+
   if (!updatedDeliveryAssociate) {
     throw new ApiError(404, "Delivery associate not found");
   }
-  
+
   return res.status(200).json(
     new ApiResponse(
       200,
@@ -123,39 +123,39 @@ export const updateVehicleDetails = asyncHandler(async (req, res) => {
 // Upload document
 export const uploadDocument = asyncHandler(async (req, res) => {
   const { documentType } = req.body;
-  
+
   if (!documentType) {
     throw new ApiError(400, "Document type is required");
   }
-  
+
   if (!req.file) {
     throw new ApiError(400, "Document file is required");
   }
-  
+
   // Upload document to cloudinary
   const document = await uploadToCloudinary(req.file.path, "delivery-associate-documents");
-  
+
   if (!document) {
     throw new ApiError(500, "Document upload failed");
   }
-  
+
   const deliveryAssociate = await DeliveryAssociate.findById(req.user._id);
-  
+
   if (!deliveryAssociate) {
     throw new ApiError(404, "Delivery associate not found");
   }
-  
+
   // Check if document type already exists
   const existingDocIndex = deliveryAssociate.documents.findIndex(
     doc => doc.type === documentType
   );
-  
+
   if (existingDocIndex !== -1) {
     // Delete old document from cloudinary
     if (deliveryAssociate.documents[existingDocIndex].publicId) {
       await deleteFromCloudinary(deliveryAssociate.documents[existingDocIndex].publicId);
     }
-    
+
     // Update existing document
     deliveryAssociate.documents[existingDocIndex] = {
       type: documentType,
@@ -174,9 +174,9 @@ export const uploadDocument = asyncHandler(async (req, res) => {
       uploadedAt: new Date()
     });
   }
-  
+
   await deliveryAssociate.save();
-  
+
   return res.status(200).json(
     new ApiResponse(
       200,
@@ -189,15 +189,15 @@ export const uploadDocument = asyncHandler(async (req, res) => {
 // Update online status
 export const updateOnlineStatus = asyncHandler(async (req, res) => {
   const { isOnline, location } = req.body;
-  
+
   if (isOnline === undefined) {
     throw new ApiError(400, "Online status is required");
   }
-  
+
   const updateFields = {
     isOnline: isOnline
   };
-  
+
   // Update location if provided
   if (location && location.coordinates) {
     updateFields.location = {
@@ -208,21 +208,21 @@ export const updateOnlineStatus = asyncHandler(async (req, res) => {
       ]
     };
   }
-  
+
   const updatedDeliveryAssociate = await DeliveryAssociate.findByIdAndUpdate(
     req.user._id,
     { $set: updateFields },
     { new: true }
   ).select("-password -passwordResetToken -passwordResetExpires");
-  
+
   if (!updatedDeliveryAssociate) {
     throw new ApiError(404, "Delivery associate not found");
   }
-  
+
   return res.status(200).json(
     new ApiResponse(
       200,
-      { 
+      {
         isOnline: updatedDeliveryAssociate.isOnline,
         location: updatedDeliveryAssociate.location
       },
@@ -234,43 +234,43 @@ export const updateOnlineStatus = asyncHandler(async (req, res) => {
 // Get assigned orders
 export const getAssignedOrders = asyncHandler(async (req, res) => {
   const { status, sort = "createdAt", order = "desc", page = 1, limit = 10 } = req.query;
-  
+
   const queryOptions = {
     "deliveryAssociate.associate": req.user._id
   };
-  
+
   // Filter by delivery status
   if (status) {
     queryOptions["deliveryAssociate.status"] = status;
   }
-  
+
   // Calculate pagination
   const skip = (parseInt(page) - 1) * parseInt(limit);
-  
+
   // Prepare sort options
   const sortOptions = {};
   sortOptions[sort] = order === "asc" ? 1 : -1;
-  
+
   // Get orders with pagination
   const orders = await Order.find(queryOptions)
-  .populate({
-    path: "customer",
-    select: "firstName lastName email phone",
-    populate: { path: "addresses", select: "name type" }
-  })
+    .populate({
+      path: "customer",
+      select: "firstName lastName email phone",
+      populate: { path: "addresses", select: "name type" }
+    })
     .populate("supplier", "businessName phone address")
     .populate("items.product", "name images")
     .sort(sortOptions)
     .skip(skip)
     .limit(parseInt(limit));
-  
+
   // Get total count
   const totalOrders = await Order.countDocuments(queryOptions);
-  
+
   return res.status(200).json(
     new ApiResponse(
       200,
-      { 
+      {
         orders,
         pagination: {
           total: totalOrders,
@@ -287,7 +287,7 @@ export const getAssignedOrders = asyncHandler(async (req, res) => {
 // Get order details
 export const getOrderDetails = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  
+
   const order = await Order.findOne({
     _id: id,
     "deliveryAssociate.associate": req.user._id
@@ -295,11 +295,11 @@ export const getOrderDetails = asyncHandler(async (req, res) => {
     .populate("customer", "firstName lastName phone address")
     .populate("supplier", "businessName phone address")
     .populate("items.product", "name images");
-  
+
   if (!order) {
     throw new ApiError(404, "Order not found or not assigned to you");
   }
-  
+
   return res.status(200).json(
     new ApiResponse(
       200,
@@ -313,25 +313,25 @@ export const getOrderDetails = asyncHandler(async (req, res) => {
 export const updateDeliveryStatus = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { status, location, notes } = req.body;
-  
+
   if (!status) {
     throw new ApiError(400, "Status is required");
   }
-  
+
   // Validate status
   if (!["packaging", "out_for_delivery", "delivered", "failed"].includes(status)) {
     throw new ApiError(400, "Invalid status");
   }
-  
+
   const order = await Order.findOne({
     _id: id,
     "deliveryAssociate.associate": req.user._id
   });
-  
+
   if (!order) {
     throw new ApiError(404, "Order not found or not assigned to you");
   }
-  
+
   // Validate status transition
   const validTransitions = {
     assigned: ["picked_up"],
@@ -340,69 +340,29 @@ export const updateDeliveryStatus = asyncHandler(async (req, res) => {
     delivered: [],
     failed: []
   };
-  
-  if (!validTransitions[order.deliveryAssociate.status] || 
-      !validTransitions[order.deliveryAssociate.status].includes(status)) {
+
+  if (!validTransitions[order.deliveryAssociate.status] ||
+    !validTransitions[order.deliveryAssociate.status].includes(status)) {
     throw new ApiError(400, `Cannot transition from ${order.deliveryAssociate.status} to ${status}`);
   }
-  
+
   // Capture previous delivery status before updating
   const previousDeliveryStatus = order.deliveryAssociate.status;
 
   // Update delivery status
   order.deliveryAssociate.status = status;
-  
-  // Update order status based on delivery status
-  // if (status === "packaging" || status === "out_for_delivery") {
-  //   order.status = "out_for_delivery";
-  // }
-  
-  if (status === "packaging") {
-  try {
-    const customer = await Customer.findById(order.customer);
 
-    if (customer && customer.phone) {
-      const smsBody = `Hi ${customer.firstName || 'Customer'}, your order is being packed.`;
+   const customer = await Customer.findById(order.customer);
 
-      try {
-        const smsResult = await sendSMS.sendSMS(customer.phone, smsBody);
-        console.log(`✅ SMS sent to customer ${customer.firstName || ''} ${customer.lastName || ''} (${customer.phone}) for order ${order._id}`);
-        console.log(`📦 Message SID: ${smsResult.sid}`);
-      } catch (smsError) {
-        console.error(`❌ Failed to send SMS to customer ${customer.phone} for order ${order._id}:`, smsError.message);
-      }
-    } else {
-      console.log(`⚠️ No valid phone number found for customer of order ${order._id}`);
-    }
-  } catch (error) {
-    console.error(`❌ Error while sending packaging SMS to customer for order ${order._id}:`, error);
-  }
-
-  // Keep packaging status in main order
-  //order.status = ""; 
+  if (status === "packaging" && customer && customer.phone) {
+  const body = `Hi ${customer.addresses?.[0]?.name || 'Customer'}, your order is being packed 🚚.`;
+  await sendSMS.sendSmsThroughWhatsapp(customer.phone, body);
 }
 
-  // Notify customer when order is dispatched
-  if (status === "out_for_delivery") {
-  try {
-    const customer = await Customer.findById(order.customer);
 
-    if (customer && customer.phone) {
-      const smsBody = `Hi ${customer.firstName || 'Customer'}, your order is out for delivery.`;
-
-      try {
-        const smsResult = await sendSMS.sendSMS(customer.phone, smsBody);
-        console.log(`✅ Dispatched SMS sent to customer ${customer.firstName || ''} ${customer.lastName || ''} (${customer.phone}) for order ${order._id}`);
-        console.log(`🚚 Message SID: ${smsResult.sid}`);
-      } catch (smsError) {
-        console.error(`❌ Failed to send dispatched SMS to customer ${customer.phone} for order ${order._id}:`, smsError.message);
-      }
-    } else {
-      console.log(`⚠️ No valid phone number found for customer of order ${order._id}`);
-    }
-  } catch (error) {
-    console.error(`❌ Error while sending dispatched SMS to customer for order ${order._id}:`, error);
-  }
+  if (status === "out_for_delivery" && customer && customer.phone) {
+  const body = `Hi ${customer.addresses?.[0]?.name || 'Customer'}, your order is out for delivery 🚚.`;
+  await sendSMS.sendSmsThroughWhatsapp(customer.phone, body);
 }
 
   // Update main order status ONLY when transitioning from packaging -> out_for_delivery
@@ -427,7 +387,7 @@ export const updateDeliveryStatus = asyncHandler(async (req, res) => {
       ]
     };
   }
-  
+
   // Update delivery associate location in their profile
   if (location && location.coordinates) {
     await DeliveryAssociate.findByIdAndUpdate(
@@ -445,12 +405,12 @@ export const updateDeliveryStatus = asyncHandler(async (req, res) => {
       }
     );
   }
-  
+
   // Update order status if delivery status is delivered
   if (status === "delivered") {
     order.status = "delivered";
     order.deliveredAt = new Date();
-    
+
     // Add status history entry
     order.statusHistory.push({
       status: "delivered",
@@ -459,7 +419,7 @@ export const updateDeliveryStatus = asyncHandler(async (req, res) => {
       updatedByModel: "DeliveryAssociate",
       note: notes || "Delivered by delivery associate"
     });
-    
+
     // Update delivery associate metrics
     await DeliveryAssociate.findByIdAndUpdate(
       req.user._id,
@@ -471,7 +431,7 @@ export const updateDeliveryStatus = asyncHandler(async (req, res) => {
       }
     );
   }
-  
+
   // Update order status if delivery status is failed
   if (status === "failed") {
     // Add status history entry
@@ -482,7 +442,7 @@ export const updateDeliveryStatus = asyncHandler(async (req, res) => {
       updatedByModel: "DeliveryAssociate",
       note: notes || "Delivery failed"
     });
-    
+
     // Update delivery associate metrics
     await DeliveryAssociate.findByIdAndUpdate(
       req.user._id,
@@ -493,9 +453,9 @@ export const updateDeliveryStatus = asyncHandler(async (req, res) => {
       }
     );
   }
-  
+
   await order.save();
-  
+
   return res.status(200).json(
     new ApiResponse(
       200,
@@ -508,17 +468,17 @@ export const updateDeliveryStatus = asyncHandler(async (req, res) => {
 // Get earnings
 export const getEarnings = asyncHandler(async (req, res) => {
   const { period = "weekly" } = req.query;
-  
+
   const deliveryAssociate = await DeliveryAssociate.findById(req.user._id);
-  
+
   if (!deliveryAssociate) {
     throw new ApiError(404, "Delivery associate not found");
   }
-  
+
   // Get current date
   const today = new Date();
   let startDate;
-  
+
   // Set start date based on period
   if (period === "daily") {
     startDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
@@ -532,20 +492,20 @@ export const getEarnings = asyncHandler(async (req, res) => {
   } else {
     throw new ApiError(400, "Invalid period. Use daily, weekly, monthly, or all");
   }
-  
+
   // Get completed orders in the period
   const completedOrders = await Order.find({
     "deliveryAssociate.associate": req.user._id,
     "deliveryAssociate.status": "delivered",
     deliveredAt: { $gte: startDate }
   }).select("deliveryCharge deliveredAt");
-  
+
   // Calculate earnings
   const earnings = completedOrders.reduce((total, order) => total + (order.deliveryCharge || 0), 0);
-  
+
   // Get earnings by day for the period
   const earningsByDay = {};
-  
+
   completedOrders.forEach(order => {
     const date = order.deliveredAt.toISOString().split('T')[0];
     if (!earningsByDay[date]) {
@@ -553,11 +513,11 @@ export const getEarnings = asyncHandler(async (req, res) => {
     }
     earningsByDay[date] += order.deliveryCharge || 0;
   });
-  
+
   return res.status(200).json(
     new ApiResponse(
       200,
-      { 
+      {
         period,
         totalEarnings: earnings,
         completedOrders: completedOrders.length,
@@ -579,11 +539,11 @@ export const getEarnings = asyncHandler(async (req, res) => {
 // Get nearby orders (for admin/supplier to assign)
 export const getNearbyDeliveryAssociates = asyncHandler(async (req, res) => {
   const { longitude, latitude, maxDistance = 10000 } = req.query; // maxDistance in meters
-  
+
   if (!longitude || !latitude) {
     throw new ApiError(400, "Longitude and latitude are required");
   }
-  
+
   // Find online delivery associates near the location
   const nearbyAssociates = await DeliveryAssociate.find({
     isOnline: true,
@@ -598,9 +558,9 @@ export const getNearbyDeliveryAssociates = asyncHandler(async (req, res) => {
       }
     }
   })
-  .select("name phone profileImage location vehicle metrics isOnline")
-  .limit(10);
-  
+    .select("name phone profileImage location vehicle metrics isOnline")
+    .limit(10);
+
   return res.status(200).json(
     new ApiResponse(
       200,
