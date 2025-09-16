@@ -965,6 +965,100 @@ export const changePassword = asyncHandler(async (req, res) => {
   );
 });
 
+// Delivery Associate Registration
+export const registerDeliveryAssociate = asyncHandler(async (req, res) => {
+  const {
+    name,
+    email,
+    phone,
+    password,
+    gender,
+    dateOfBirth,
+    address,
+    vehicle
+  } = req.body;
+
+  // Validate required fields
+  if (!name || !email || !phone || !password || !address) {
+    throw new ApiError(400, "Name, email, phone, password, and address are required");
+  }
+
+  // Check if email already exists
+  const existingEmail = await DeliveryAssociate.findOne({ email: email.toLowerCase() });
+  if (existingEmail) {
+    throw new ApiError(409, "Email is already registered");
+  }
+
+  // Check if phone already exists
+  const existingPhone = await DeliveryAssociate.findOne({ phone });
+  if (existingPhone) {
+    throw new ApiError(409, "Phone number is already registered");
+  }
+
+  // Create new delivery associate
+  const deliveryAssociate = await DeliveryAssociate.create({
+    name,
+    email: email.toLowerCase(),
+    phone,
+    password,
+    gender,
+    dateOfBirth,
+    address,
+    vehicle,
+    isVerified: false,
+    lastLogin: new Date()
+  });
+
+  // Remove sensitive fields from response
+  const createdDeliveryAssociate = await DeliveryAssociate.findById(deliveryAssociate._id).select(
+    "-password -passwordResetToken -passwordResetExpires"
+  );
+
+  if (!createdDeliveryAssociate) {
+    throw new ApiError(500, "Something went wrong while registering the delivery associate");
+  }
+
+  // Generate tokens
+  const { accessToken, refreshToken } = await generateTokensAndSetCookies(deliveryAssociate, res);
+
+  // Send welcome email
+  try {
+    await sendEmail({
+      to: createdDeliveryAssociate.email,
+      subject: "Welcome to FarmFerry Delivery Team!",
+      html: `
+        <h1>Welcome, ${createdDeliveryAssociate.name}!</h1>
+        <p>Thank you for joining the FarmFerry delivery team. We're excited to have you on board.</p>
+        <p>Your account has been created successfully and is pending verification. Our team will review your profile and get back to you soon.</p>
+        <p>Once verified, you'll be able to start accepting delivery orders and earning money.</p>
+        <a href="${process.env.FRONTEND_URL}" style="display: inline-block; padding: 10px 20px; background-color: #28a745; color: #fff; text-decoration: none; border-radius: 5px;">Get Started</a>
+      `,
+    });
+  } catch (error) {
+    console.error("Error sending welcome email:", error);
+  }
+
+  // Send response
+  return res.status(201).json(
+    new ApiResponse(
+      201,
+      {
+        user: {
+          _id: createdDeliveryAssociate._id,
+          name: createdDeliveryAssociate.name,
+          email: createdDeliveryAssociate.email,
+          phone: createdDeliveryAssociate.phone,
+          isVerified: createdDeliveryAssociate.isVerified,
+          vehicle: createdDeliveryAssociate.vehicle,
+        },
+        accessToken,
+        refreshToken
+      },
+      "Delivery associate registered successfully. Your account is pending verification."
+    )
+  );
+});
+
 // Delivery Associate Login
 export const loginDeliveryAssociate = asyncHandler(async (req, res) => {
   const { phone, password } = req.body;

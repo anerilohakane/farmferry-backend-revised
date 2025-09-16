@@ -13,6 +13,7 @@ import {
   getWatchHistory,
   registerAdmin,
   registerSupplier,
+  registerDeliveryAssociate,
   login,
   forgotPassword,
   resetPassword,
@@ -55,6 +56,7 @@ router.post("/send-phone-verification", sendPhoneVerification);
 router.post("/verify-phone-otp", verifyPhoneOTP);
 router.post("/send-delivery-associate-otp", sendDeliveryAssociatePhoneVerification);
 router.post("/register/admin", registerAdmin);
+router.post("/register/delivery-associate", registerDeliveryAssociate);
 // Secured routes (require authentication)
 router.use(verifyJWT);
 
