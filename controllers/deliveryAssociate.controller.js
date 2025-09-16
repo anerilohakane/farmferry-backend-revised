@@ -4,6 +4,7 @@ import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { uploadToCloudinary, deleteFromCloudinary } from "../config/cloudinary.js";
+import sendSMS from "../utils/sms.js";
 import fetch from "node-fetch";
 // controllers/deliveryController.js
 import DeliveryVerificationService from '../utils/deliveryVerificationService.js';
@@ -345,14 +346,77 @@ export const updateDeliveryStatus = asyncHandler(async (req, res) => {
     throw new ApiError(400, `Cannot transition from ${order.deliveryAssociate.status} to ${status}`);
   }
   
+  // Capture previous delivery status before updating
+  const previousDeliveryStatus = order.deliveryAssociate.status;
+
   // Update delivery status
   order.deliveryAssociate.status = status;
   
   // Update order status based on delivery status
-  if (status === "packaging" || status === "out_for_delivery") {
-    order.status = "out_for_delivery";
-  }
+  // if (status === "packaging" || status === "out_for_delivery") {
+  //   order.status = "out_for_delivery";
+  // }
   
+  if (status === "packaging") {
+  try {
+    const customer = await Customer.findById(order.customer);
+
+    if (customer && customer.phone) {
+      const smsBody = `Hi ${customer.firstName || 'Customer'}, your order is being packed.`;
+
+      try {
+        const smsResult = await sendSMS.sendSMS(customer.phone, smsBody);
+        console.log(`✅ SMS sent to customer ${customer.firstName || ''} ${customer.lastName || ''} (${customer.phone}) for order ${order._id}`);
+        console.log(`📦 Message SID: ${smsResult.sid}`);
+      } catch (smsError) {
+        console.error(`❌ Failed to send SMS to customer ${customer.phone} for order ${order._id}:`, smsError.message);
+      }
+    } else {
+      console.log(`⚠️ No valid phone number found for customer of order ${order._id}`);
+    }
+  } catch (error) {
+    console.error(`❌ Error while sending packaging SMS to customer for order ${order._id}:`, error);
+  }
+
+  // Keep packaging status in main order
+  //order.status = ""; 
+}
+
+  // Notify customer when order is dispatched
+  if (status === "out_for_delivery") {
+  try {
+    const customer = await Customer.findById(order.customer);
+
+    if (customer && customer.phone) {
+      const smsBody = `Hi ${customer.firstName || 'Customer'}, your order is out for delivery.`;
+
+      try {
+        const smsResult = await sendSMS.sendSMS(customer.phone, smsBody);
+        console.log(`✅ Dispatched SMS sent to customer ${customer.firstName || ''} ${customer.lastName || ''} (${customer.phone}) for order ${order._id}`);
+        console.log(`🚚 Message SID: ${smsResult.sid}`);
+      } catch (smsError) {
+        console.error(`❌ Failed to send dispatched SMS to customer ${customer.phone} for order ${order._id}:`, smsError.message);
+      }
+    } else {
+      console.log(`⚠️ No valid phone number found for customer of order ${order._id}`);
+    }
+  } catch (error) {
+    console.error(`❌ Error while sending dispatched SMS to customer for order ${order._id}:`, error);
+  }
+}
+
+  // Update main order status ONLY when transitioning from packaging -> out_for_delivery
+  if (previousDeliveryStatus === "packaging" && status === "out_for_delivery") {
+    order.status = "out_for_delivery";
+    order.statusHistory.push({
+      status: "out_for_delivery",
+      updatedAt: new Date(),
+      updatedBy: req.user._id,
+      updatedByModel: "DeliveryAssociate",
+      note: "Delivery started by delivery associate"
+    });
+  }
+
   // Add location if provided
   if (location && location.coordinates) {
     order.deliveryAssociate.currentLocation = {
