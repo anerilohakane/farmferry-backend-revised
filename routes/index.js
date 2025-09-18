@@ -18,6 +18,7 @@ import deliveryAssociatePaymentRoutes from "./deliveryAssociatePayment.routes.js
 import supplierPaymentRoutes from "./supplierPayment.routes.js";
 import refundRoutes from "./refund.routes.js";
 import paymentWebhookRoutes from "./paymentWebhook.routes.js";
+import couponRoutes from "./coupon.routes.js";
 //import settingsRoutes from "./settings.routes.js";
 
 const router = Router();
@@ -45,6 +46,6 @@ router.use("/refunds", refundRoutes);
 router.use("/webhooks", paymentWebhookRoutes);
 
 router.use("/sms", smsRoutes);
-
+router.use("/coupons", couponRoutes);
 
 export default router;

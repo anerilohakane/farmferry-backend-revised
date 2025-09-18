@@ -339,37 +339,8 @@ export const clearCart = asyncHandler(async (req, res) => {
   );
 });
 
-// Apply coupon to cart
+// Apply coupon to cart - Redirect to coupon controller
 export const applyCoupon = asyncHandler(async (req, res) => {
-  const { couponCode } = req.body;
-
-  if (!couponCode) {
-    throw new ApiError(400, "Coupon code is required");
-  }
-
-  // Find cart
-  const cart = await Cart.findOne({ customer: req.user._id });
-
-  if (!cart) {
-    throw new ApiError(404, "Cart not found");
-  }
-
-  // In a real application, validate coupon code and calculate discount
-  // For now, use a placeholder discount (10%)
-  const discount = Math.round(cart.subtotal * 0.1);
-
-  return res.status(200).json(
-    new ApiResponse(
-      200,
-      {
-        cart,
-        coupon: {
-          code: couponCode,
-          discount,
-          total: cart.subtotal - discount
-        }
-      },
-      "Coupon applied successfully"
-    )
-  );
+  // This function is deprecated - use /api/v1/coupons/apply instead
+  throw new ApiError(400, "Please use /api/v1/coupons/apply endpoint for coupon functionality");
 });
