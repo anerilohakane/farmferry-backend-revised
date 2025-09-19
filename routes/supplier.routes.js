@@ -11,14 +11,18 @@ import {
   updateOrderStatus,
   getSupplierDashboardStats,
   getSupplierOrderById,
-  getVerificationStatus
+  getVerificationStatus,
+  registerSupplier  // New import
 } from "../controllers/supplier.controller.js";
 import { verifyJWT, authorizeRoles } from "../middlewares/auth.middleware.js";
 import { upload } from "../middlewares/multer.middleware.js";
 
 const router = Router();
 
-// Apply JWT verification to all routes
+// Public route for registration (no middleware)
+router.post("/register", registerSupplier);
+
+// Apply JWT verification to all other routes
 router.use(verifyJWT, authorizeRoles("supplier"));
 
 // Profile routes

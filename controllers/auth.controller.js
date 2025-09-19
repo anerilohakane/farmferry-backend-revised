@@ -649,20 +649,36 @@ export const refreshAccessToken = asyncHandler(async (req, res) => {
 
 // Forgot Password
 export const forgotPassword = asyncHandler(async (req, res) => {
-  const { email, role = "customer" } = req.body;
+  const { email, role } = req.body;
 
   if (!email) {
     throw new ApiError(400, "Email is required");
   }
 
-  // Find user based on role
+  // Find user based on role, or auto-detect if role not provided
   let user;
-  if (role === "admin") {
-    user = await Admin.findOne({ email: email.toLowerCase() });
-  } else if (role === "supplier") {
-    user = await Supplier.findOne({ email: email.toLowerCase() });
+  let resolvedRole = role?.toLowerCase();
+  const normalizedEmail = email.trim().toLowerCase();
+
+  if (resolvedRole === "admin") {
+    user = await Admin.findOne({ email: normalizedEmail });
+  } else if (resolvedRole === "supplier") {
+    user = await Supplier.findOne({ email: normalizedEmail });
+  } else if (resolvedRole === "customer") {
+    user = await Customer.findOne({ email: normalizedEmail });
   } else {
-    user = await Customer.findOne({ email: email.toLowerCase() });
+    // Auto-detect role by searching across collections
+    user = await Supplier.findOne({ email: normalizedEmail });
+    resolvedRole = user ? "supplier" : resolvedRole;
+
+    if (!user) {
+      user = await Admin.findOne({ email: normalizedEmail });
+      resolvedRole = user ? "admin" : resolvedRole;
+    }
+    if (!user) {
+      user = await Customer.findOne({ email: normalizedEmail });
+      resolvedRole = user ? "customer" : resolvedRole;
+    }
   }
 
   if (!user) {
@@ -670,7 +686,7 @@ export const forgotPassword = asyncHandler(async (req, res) => {
   }
 
   // Generate reset token or OTP based on role
-  if (role === "customer") {
+  if (resolvedRole === "customer") {
     // For customers, generate OTP
     const resetOTP = user.generatePasswordResetOTP();
     await user.save({ validateBeforeSave: false });
@@ -740,9 +756,9 @@ export const forgotPassword = asyncHandler(async (req, res) => {
 // Reset Password
 export const resetPassword = asyncHandler(async (req, res) => {
   const { token } = req.params;
-  const { password, role = "customer", otp } = req.body;
+  const { password, role, otp } = req.body;
 
-  if (role === "customer") {
+  if (role === "customer" || otp) {
     // For customers, use OTP
     if (!otp || !password) {
       throw new ApiError(400, "OTP and password are required");
@@ -773,7 +789,7 @@ export const resetPassword = asyncHandler(async (req, res) => {
       )
     );
   } else {
-    // For admin and supplier, use token (existing logic)
+    // For admin and supplier (and fallback), use token without requiring role
     if (!token || !password) {
       throw new ApiError(400, "Token and password are required");
     }
@@ -784,18 +800,43 @@ export const resetPassword = asyncHandler(async (req, res) => {
       .update(token)
       .digest("hex");
 
-    // Find user based on role
+    // Try to find user by token across roles if role not provided
     let user;
-    if (role === "admin") {
+    const resolvedRole = role?.toLowerCase();
+
+    if (resolvedRole === "admin") {
       user = await Admin.findOne({
         passwordResetToken: hashedToken,
         passwordResetExpires: { $gt: Date.now() }
       });
-    } else if (role === "supplier") {
+    } else if (resolvedRole === "supplier") {
       user = await Supplier.findOne({
         passwordResetToken: hashedToken,
         passwordResetExpires: { $gt: Date.now() }
       });
+    } else if (resolvedRole === "customer") {
+      user = await Customer.findOne({
+        passwordResetToken: hashedToken,
+        passwordResetExpires: { $gt: Date.now() }
+      });
+    } else {
+      // Auto-detect: supplier -> admin -> customer
+      user = await Supplier.findOne({
+        passwordResetToken: hashedToken,
+        passwordResetExpires: { $gt: Date.now() }
+      });
+      if (!user) {
+        user = await Admin.findOne({
+          passwordResetToken: hashedToken,
+          passwordResetExpires: { $gt: Date.now() }
+        });
+      }
+      if (!user) {
+        user = await Customer.findOne({
+          passwordResetToken: hashedToken,
+          passwordResetExpires: { $gt: Date.now() }
+        });
+      }
     }
 
     if (!user) {

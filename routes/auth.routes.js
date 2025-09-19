@@ -57,6 +57,7 @@ router.post("/verify-phone-otp", verifyPhoneOTP);
 router.post("/send-delivery-associate-otp", sendDeliveryAssociatePhoneVerification);
 router.post("/register/admin", registerAdmin);
 router.post("/register/delivery-associate", registerDeliveryAssociate);
+router.post("/register/supplier", registerSupplier);
 // Secured routes (require authentication)
 router.use(verifyJWT);
 
@@ -67,8 +68,6 @@ router.patch("/update-account", updateAccountDetails);
 router.patch("/update-avatar", upload.single("avatar"), updateUserAvatar);
 router.patch("/update-cover-image", upload.single("coverImage"), updateUserCoverImage);
 
-// Supplier/Admin registration (if these should be protected)
-router.post("/register/supplier", registerSupplier);
 
 // Channel routes
 router.get("/c/:username", getUserChannelProfile);

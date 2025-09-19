@@ -7,6 +7,74 @@ import { ApiResponse } from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { uploadToCloudinary, deleteFromCloudinary } from "../config/cloudinary.js";
 import mongoose from "mongoose";
+import bcrypt from "bcryptjs"; // Added for password hashing
+
+// Register supplier
+export const registerSupplier = asyncHandler(async (req, res) => {
+  const { fullName, email, phoneNumber, businessName, password } = req.body;
+
+  // Validate required fields
+  if (!fullName || !email || !phoneNumber || !businessName || !password) {
+    throw new ApiError(400, "Full name, email, phone number, business name, and password are required");
+  }
+
+  if (password.length < 6) {
+    throw new ApiError(400, "Password must be at least 6 characters");
+  }
+
+  // Check for existing email
+  const existingSupplier = await Supplier.findOne({ email: email.toLowerCase() });
+  if (existingSupplier) {
+    throw new ApiError(409, "Email is already registered");
+  }
+
+  // Check for existing phone
+  const existingPhone = await Supplier.findOne({ phone: phoneNumber });
+  if (existingPhone) {
+    throw new ApiError(409, "Phone number is already registered");
+  }
+
+  // Hash password (remove if model has pre-save hook)
+  const saltRounds = 10;
+  const hashedPassword = await bcrypt.hash(password, saltRounds);
+
+  // Create new supplier
+  const supplier = await Supplier.create({
+    ownerName: fullName, // Map fullName to ownerName
+    email: email.toLowerCase(),
+    phone: phoneNumber,
+    businessName,
+    password: hashedPassword,
+    role: "supplier",
+    status: "pending",
+    lastLogin: new Date(),
+  });
+
+  // Remove sensitive fields
+  const createdSupplier = await Supplier.findById(supplier._id).select(
+    "-password -passwordResetToken -passwordResetExpires"
+  );
+
+  if (!createdSupplier) {
+    throw new ApiError(500, "Something went wrong while registering the supplier");
+  }
+
+  // Generate tokens for auto-login
+  const accessToken = supplier.generateAccessToken();
+  const refreshToken = supplier.generateRefreshToken();
+
+  return res.status(201).json(
+    new ApiResponse(
+      201,
+      {
+        user: createdSupplier,
+        accessToken,
+        refreshToken,
+      },
+      "Supplier registered and logged in successfully"
+    )
+  );
+});
 
 // Get supplier profile
 export const getSupplierProfile = asyncHandler(async (req, res) => {
@@ -204,7 +272,7 @@ export const updateBankDetails = asyncHandler(async (req, res) => {
   
   // Update bank details
   supplier.bankDetails = {
-    accountHolderName: accountName, // <-- Fix here
+    accountHolderName: accountName,
     accountNumber,
     bankName,
     ifscCode,
@@ -717,7 +785,7 @@ export const getVerificationStatus = asyncHandler(async (req, res) => {
   // Build steps dynamically
   const steps = [
     { label: 'Upload documents', completed: documents.every(doc => doc.status !== 'not_uploaded') },
-    { label: 'Under review', completed: documents.every(doc => doc.status === 'approved' || doc.status === 'rejected') },
+    { label: 'Under review', completed: documents.every(doc => doc.status === 'approved' || doc.rejectionReason) },
     { label: 'Verification complete', completed: verificationStatus === 'verified' }
   ];
 
@@ -726,7 +794,7 @@ export const getVerificationStatus = asyncHandler(async (req, res) => {
       verificationStatus,
       documents,
       steps,
-      supplierStatus: supplier.status, // Include supplier status for debugging
+      supplierStatus: supplier.status,
       verifiedAt: supplier.verifiedAt,
       verificationNotes: supplier.verificationNotes
     }, 'Supplier verification status fetched successfully')
