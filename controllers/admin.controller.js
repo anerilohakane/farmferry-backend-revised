@@ -566,7 +566,7 @@ export const getDashboardStats = asyncHandler(async (req, res) => {
   
   // Get recent orders
   const recentOrders = await Order.find()
-    .populate("customer", "firstName lastName")
+    .populate("customer", "firstName lastName phone email")
     .populate("supplier", "businessName")
     .sort({ createdAt: -1 })
     .limit(5);
