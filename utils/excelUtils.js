@@ -11,8 +11,8 @@ import Category from '../models/category.model.js';
 export const generateProductTemplate = async (type, supplierId) => {
   const workbook = new ExcelJS.Workbook();
   const worksheet = workbook.addWorksheet('Products');
-  
-  // Define columns
+
+  // Define columns (removed categoryId)
   worksheet.columns = [
     { header: '_id', key: '_id', width: 30 },
     { header: 'name', key: 'name', width: 30, note: 'Required field' },
@@ -21,11 +21,10 @@ export const generateProductTemplate = async (type, supplierId) => {
     { header: 'gst', key: 'gst', width: 10, note: 'Must be between 0-100' },
     { header: 'stockQuantity', key: 'stockQuantity', width: 15, note: 'Required field, must be number' },
     { header: 'unit', key: 'unit', width: 10, note: 'kg, g, liters, ml, pcs, box, dozen' },
-    { header: 'categoryId', key: 'categoryId', width: 30 },
     { header: 'categoryName', key: 'categoryName', width: 20 },
     { header: 'images', key: 'images', width: 50, note: 'Comma-separated URLs. First image will be main image' }
   ];
-  
+
   // Style headers
   worksheet.getRow(1).font = { bold: true };
   worksheet.getRow(1).fill = {
@@ -33,14 +32,14 @@ export const generateProductTemplate = async (type, supplierId) => {
     pattern: 'solid',
     fgColor: { argb: 'FFE0E0E0' }
   };
-  
+
   // Add data validation for units
   worksheet.dataValidations.add('G2:G1000', {
     type: 'list',
     allowBlank: true,
     formulae: ['"kg,g,liters,ml,pcs,box,dozen"']
   });
-  
+
   // Add data validation for GST (0-100)
   worksheet.dataValidations.add('E2:E1000', {
     type: 'decimal',
@@ -51,25 +50,24 @@ export const generateProductTemplate = async (type, supplierId) => {
     errorTitle: 'Invalid GST',
     error: 'GST must be between 0 and 100'
   });
-  
+
   // Get categories for dropdown
   const categories = await Category.find({});
   const categoryNames = categories.map(cat => cat.name);
-  
-  // Add data validation for category names
-  worksheet.dataValidations.add('I2:I1000', {
+
+  worksheet.dataValidations.add('H2:H1000', {   // H is categoryName column
     type: 'list',
     allowBlank: true,
     formulae: [`"${categoryNames.join(',')}"`]
   });
-  
+
   // For "old" template, populate with existing products
   if (type === 'old' && supplierId) {
     const Product = await import('../models/product.model.js').then(m => m.default);
     const existingProducts = await Product.find({ supplierId })
       .populate('categoryId', 'name');
-    
-    existingProducts.forEach((product, index) => {
+
+    existingProducts.forEach((product) => {
       worksheet.addRow({
         _id: product._id.toString(),
         name: product.name,
@@ -78,24 +76,24 @@ export const generateProductTemplate = async (type, supplierId) => {
         gst: product.gst || 0,
         stockQuantity: product.stockQuantity,
         unit: product.unit,
-        categoryId: product.categoryId?._id?.toString() || '',
         categoryName: product.categoryId?.name || '',
         images: product.images.map(img => img.url).join(', ')
       });
     });
   }
-  
+
   // Add instructions
   worksheet.addRow([]);
   worksheet.addRow(['Instructions:']);
   worksheet.addRow(['- Leave _id empty for new products']);
-  worksheet.addRow(['- Provide either categoryId or categoryName']);
+  worksheet.addRow(['- Use categoryName from dropdown']);
   worksheet.addRow(['- For updates, include the _id from existing products']);
   worksheet.addRow(['- Images should be comma-separated URLs']);
   worksheet.addRow(['- First image will be set as the main image']);
-  
+
   return workbook;
 };
+
 
 /**
  * Parses Excel file and extracts product data

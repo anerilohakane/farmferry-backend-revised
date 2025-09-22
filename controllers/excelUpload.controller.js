@@ -11,6 +11,7 @@ import mongoose from 'mongoose';
 import { validateProductData} from '../utils/uploadValidation.js';
 import { processProductsInBatches}  from '../services/product.service.js';
 import { processProductImages, getCategoryImage } from '../utils/imageUtils.js';
+
 // import Category from '../models/category.model.js';
 // import validateExcelStructure}
 // Generate Excel template
@@ -46,96 +47,89 @@ export const generateTemplate = asyncHandler(async (req, res) => {
 
 // Parse uploaded Excel file
 // Parse uploaded Excel file (continued from previous)
-export  const parseExcelUpload = asyncHandler(async (req, res) => {
+export const parseExcelUpload = asyncHandler(async (req, res) => {
   const { supplierId } = req.params;
-  
-  // Validate supplier access
+
+  // ✅ Validate supplier access
   if (req.user._id.toString() !== supplierId && req.role !== 'admin') {
     throw new ApiError(403, "You are not authorized to upload products for this supplier");
   }
-  
+
   if (!req.file) {
     throw new ApiError(400, "Excel file is required");
   }
-  
-  // Validate file type
+
+  // ✅ Validate file type
   const allowedMimeTypes = [
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     'application/vnd.ms-excel'
   ];
-  
+
   if (!allowedMimeTypes.includes(req.file.mimetype)) {
     throw new ApiError(400, "Only Excel files (.xlsx) are allowed");
   }
-  
+
   try {
-    // Parse Excel file using utility function
+    // ✅ Parse Excel
     const products = await parseExcelFile(req.file.buffer);
-    
-    // Validate Excel structure
-    const structureErrors = validateProductData(products);
-    if (structureErrors.length > 0) {
-      throw new ApiError(400, structureErrors.join(', '));
-    }
-    
+
     if (products.length === 0) {
       throw new ApiError(400, "Excel file contains no product data");
     }
-    
-    // Clear previous preview products for this supplier
+
+    // ✅ Clear previous previews for this supplier
     await PreviewProduct.deleteMany({ supplierId });
-    
+
     const previewProducts = [];
     let validCount = 0;
     let invalidCount = 0;
-    
-    // Process each product
+    let skippedCount = 0;
+
+    // ✅ Process each product row
     for (const productData of products) {
+      // 🔥 Skip instruction or empty rows
+      if (
+        (!productData.name || productData.name.toLowerCase().includes('instruction')) &&
+        !productData.price &&
+        !productData.categoryId &&
+        !productData.categoryName
+      ) {
+        console.log(`Skipping row ${productData.excelRowIndex} → instruction/empty row`);
+        skippedCount++;
+        continue;
+      }
+
       try {
-        // Validate product data
+        // Validate
         const { errors, validatedData } = await validateProductData(productData, supplierId);
+        console.log("validatedData:", validatedData);
+
+        // ✅ Check if images were provided in Excel (handle both string and array)
+        const hasCustomImages = Array.isArray(productData.images) && productData.images.length > 0 ||
+                               typeof productData.images === 'string' && productData.images.trim() !== '';
+
+        let images = [];
         
-        // Process images
-        // Process images with category fallback
-let images = [];
-if (errors.length === 0) {
-  try {
-    images = await processProductImages(
-      productData.images || [], 
-      !!validatedData._id,
-      validatedData._id,
-      validatedData.categoryId // Pass categoryId for fallback
-    );
-  } catch (imageError) {
-    errors.push(`Failed to process images: ${imageError.message}`);
-    
-    // Fallback to category image even if processing fails
-    try {
-      const categoryImage = await getCategoryImage(validatedData.categoryId);
-      images = [categoryImage];
-      errors.pop(); // Remove the image error since we have a fallback
-    } catch (fallbackError) {
-      // If category image also fails, keep the original error
-      console.error('Category image fallback also failed:', fallbackError.message);
-    }
-  }
-} else {
-  // Even for invalid products, try to set a default image for preview
-  try {
-    const categoryImage = await getCategoryImage(validatedData.categoryId);
-    images = [categoryImage];
-  } catch (error) {
-    images = [{
-      url: '/default-product.jpg',
-      publicId: `default-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      isMain: true
-    }];
-  }
-}
-        // Determine if this is an update
+        // ✅ ONLY process images if supplier explicitly provided them in Excel
+        if (hasCustomImages && errors.length === 0) {
+          try {
+            images = await processProductImages(
+              productData.images,
+              !!validatedData._id,
+              validatedData._id,
+              validatedData.categoryId
+            );
+            console.log(`✅ Processed ${images.length} custom images for product: ${validatedData.name}`);
+          } catch (imageError) {
+            console.error(`❌ Image processing failed for ${validatedData.name}:`, imageError.message);
+            // ✅ Add error but DON'T assign any fallback images
+            errors.push(`Failed to process images: ${imageError.message}`);
+          }
+        }
+        // ✅ NO else blocks - no category images, no default images
+
+        // ✅ Build previewProduct
         const isUpdate = !!validatedData._id && mongoose.Types.ObjectId.isValid(validatedData._id);
-        
-        // Create preview product
         const previewProduct = {
           supplierId,
           name: validatedData.name,
@@ -144,25 +138,25 @@ if (errors.length === 0) {
           gst: validatedData.gst || 0,
           stockQuantity: validatedData.stockQuantity,
           unit: validatedData.unit || 'kg',
-          categoryId: validatedData.categoryId,
-          categoryName: validatedData.categoryName,
-          images,
+          categoryId: validatedData.categoryId || null,
+          categoryName: validatedData.categoryName || '',
+          images, // ✅ Will be empty array if no images provided by supplier
           excelRowIndex: validatedData.excelRowIndex,
           isUpdate,
-          originalProductId: validatedData._id,
+          originalProductId: isUpdate ? validatedData._id : null,
           validationErrors: errors,
-          status: errors.length === 0 ? 'valid' : 'invalid'
+          status: errors.length === 0 ? 'valid' : 'invalid',
+          hasCustomImage: hasCustomImages
         };
-        console.log("Preview Product:", previewProduct);
+
         previewProducts.push(previewProduct);
-        
-        if (errors.length === 0) {
-          validCount++;
-        } else {
-          invalidCount++;
-        }
+
+        if (errors.length === 0) validCount++;
+        else invalidCount++;
+
       } catch (error) {
-        // If individual product validation fails, still create a preview product with errors
+        console.error(`❌ Unexpected error processing product ${productData.name}:`, error);
+        
         const previewProduct = {
           supplierId,
           name: productData.name || 'Unknown Product',
@@ -172,46 +166,47 @@ if (errors.length === 0) {
           stockQuantity: productData.stockQuantity || 0,
           unit: productData.unit || 'kg',
           excelRowIndex: productData.excelRowIndex,
+          images: [], // ✅ Empty array - no images assigned
           isUpdate: false,
-          validationErrors: [`Validation error: ${error.message}`],
-          status: 'invalid'
+          validationErrors: [`Unexpected error: ${error.message}`],
+          status: 'invalid',
+          hasCustomImage: false
         };
-        
         previewProducts.push(previewProduct);
         invalidCount++;
       }
     }
-    
-    // Save all preview products in batches to avoid large inserts
+
+    // ✅ Insert preview products in batches
     const batchSize = 100;
     for (let i = 0; i < previewProducts.length; i += batchSize) {
       const batch = previewProducts.slice(i, i + batchSize);
       await PreviewProduct.insertMany(batch);
     }
-    
+
     return res.status(200).json(
       new ApiResponse(
         200,
-        { 
+        {
           processedRows: previewProducts.length,
           validRows: validCount,
           invalidRows: invalidCount,
+          skippedRows: skippedCount,
           hasInvalidRows: invalidCount > 0
         },
         "Excel file processed successfully"
       )
     );
-    
+
   } catch (error) {
-    // Handle specific Excel parsing errors
-    if (error.message.includes('Excel file must contain')) {
+    if (error.message.includes("Excel file must contain")) {
       throw new ApiError(400, error.message);
     }
-    
-    // Handle other errors
     throw new ApiError(500, `Failed to process Excel file: ${error.message}`);
   }
 });
+
+
 
 // Get preview products
 export const getPreviewProducts = asyncHandler(async (req, res) => {
@@ -318,6 +313,7 @@ export const confirmUpload = asyncHandler(async (req, res) => {
     throw new ApiError(500, `Failed to confirm upload: ${error.message}`);
   }
 });
+
 
 // Delete preview products
 export const deletePreviewProducts = asyncHandler(async (req, res) => {

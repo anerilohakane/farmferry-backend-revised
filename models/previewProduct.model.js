@@ -49,7 +49,7 @@ const previewProductSchema = new mongoose.Schema(
     images: {
       type: [
         {
-          url: { type: String, required: true },
+          url: { type: String },
           publicId: { type: String },
           isMain: { type: Boolean, default: false }
         }

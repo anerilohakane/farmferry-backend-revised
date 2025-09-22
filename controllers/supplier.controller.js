@@ -7,6 +7,7 @@ import { asyncHandler } from "../utils/asyncHandler.js";
 import ExcelJS from 'exceljs';
 import { mapExcelToProduct, validateProductData } from "../utils/uploadValidation.js";
 import mongoose from "mongoose";
+import Order from '../models/order.model.js'; 
 // Get supplier profile
 export const getSupplierProfile = asyncHandler(async (req, res) => {
   const supplier = await Supplier.findById(req.user._id).select("-password -passwordResetToken -passwordResetExpires");

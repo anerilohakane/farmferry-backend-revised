@@ -10,6 +10,8 @@ import {
   updatePreviewProduct
 } from '../controllers/excelUpload.controller.js';
 import { verifyJWT } from '../middlewares/auth.middleware.js';
+import { excelUpload } from '../middlewares/multer.middleware.js';
+
 
 const router = express.Router();
 
@@ -58,7 +60,7 @@ router.use(verifyJWT);
 router.get('/:supplierId/template/:type', generateTemplate);
 
 // Upload and parse Excel file
-router.post('/:supplierId/upload', upload.single('excelFile'), handleMulterError, parseExcelUpload);
+router.post('/:supplierId/upload', excelUpload.single("excelFile"),handleMulterError,parseExcelUpload)
 
 // Get preview products
 router.get('/:supplierId/preview-products', getPreviewProducts);

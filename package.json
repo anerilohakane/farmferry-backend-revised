@@ -46,7 +46,8 @@
     "pdfkit": "^0.17.1",
     "qrcode": "^1.5.3",
     "twilio": "^5.7.0",
-    "uuid": "^11.1.0"
+    "uuid": "^11.1.0",
+    "expo-document-picker": "~13.1.6"
   },
   "devDependencies": {
     "@babel/preset-env": "^7.23.9",

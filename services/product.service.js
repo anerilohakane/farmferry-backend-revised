@@ -1,6 +1,6 @@
 import Product from '../models/product.model.js';
 import PreviewProduct from '../models/previewProduct.model.js';
-import Category from '../models/category.model.js';
+
 import mongoose from 'mongoose';
 
 /**
@@ -49,6 +49,7 @@ export const processProductsInBatches = async (supplierId, processInvalid = fals
             results.skipped++;
             continue;
           }
+          console.log(`previewProduct:${previewProduct}`)
 
           if (previewProduct.isUpdate && previewProduct.originalProductId) {
             // ✅ UPDATE EXISTING PRODUCT

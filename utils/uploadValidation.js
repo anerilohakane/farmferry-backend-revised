@@ -27,8 +27,18 @@ const getExcelValue = (row, possibleKeys) => {
 
 // Map Excel row to product schema
 export const mapExcelToProduct = (row, supplierId, categoryId, rowNumber) => {
+  // Get image URL from Excel (could be null/undefined)
+  const imageUrl = getExcelValue(row, ['image_url', 'Image URL', 'image', 'images']);
+  
+  // Only create images array if URL is provided
+  const images = imageUrl ? [{
+    url: imageUrl, // Use the actual URL from Excel
+    publicId: `excel-img-${rowNumber}-${Date.now()}`,
+    isMain: true
+  }] : []; // Empty array if no image provided
+
   return {
-    _id: getExcelValue(row, ['_id', 'id', 'product_id']), // Map _id if needed
+    _id: getExcelValue(row, ['_id', 'id', 'product_id']),
     name: getExcelValue(row, ['name', 'Product Name', 'product_name']) || '',
     description: getExcelValue(row, ['description', 'Description', 'desc']) || '',
     price: parseFloat(getExcelValue(row, ['price', 'Price', 'selling_price']) || 0),
@@ -37,11 +47,7 @@ export const mapExcelToProduct = (row, supplierId, categoryId, rowNumber) => {
     unit: (getExcelValue(row, ['unit', 'Unit', 'measurement_unit']) || 'kg').toLowerCase(),
     categoryId: getExcelValue(row, ['categoryId', 'Category ID']),
     categoryName: getExcelValue(row, ['categoryName', 'Category Name', 'Category']),
-    images: [{
-      url: '/default-product.jpg',
-      publicId: 'default-product',
-      isMain: true
-    }],
+    images: images, // ✅ Use the conditional images array
     isActive: true
   };
 };
