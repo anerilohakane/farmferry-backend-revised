@@ -602,7 +602,7 @@ export const getSupplierDashboardStats = asyncHandler(async (req, res) => {
   
   // Get recent orders
   const recentOrders = await Order.find({ supplier: supplierId })
-    .populate("customer", "firstName lastName")
+    .populate("customer", "firstName lastName phone email")
     .populate("items.product", "name")
     .sort({ createdAt: -1 })
     .limit(5);
