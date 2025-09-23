@@ -12,10 +12,10 @@ import {
   getSupplierDashboardStats,
   getSupplierOrderById,
   getVerificationStatus,
-  registerSupplier  // New import
+  registerSupplier  // New import,
 } from "../controllers/supplier.controller.js";
 import { verifyJWT, authorizeRoles } from "../middlewares/auth.middleware.js";
-import { upload } from "../middlewares/multer.middleware.js";
+import { upload} from "../middlewares/multer.middleware.js";
 
 const router = Router();
 
@@ -46,5 +46,4 @@ router.get("/dashboard-stats", getSupplierDashboardStats);
 
 // Verification status route
 router.get("/verification-status", getVerificationStatus);
-
 export default router;

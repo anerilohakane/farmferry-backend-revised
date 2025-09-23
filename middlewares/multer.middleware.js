@@ -71,6 +71,6 @@ export const handleMulterError = (err, req, res, next) => {
       message: err.message
     });
   }
-  
+
   next();
 };
