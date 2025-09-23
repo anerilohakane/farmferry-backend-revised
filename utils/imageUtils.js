@@ -1,7 +1,9 @@
 import { uploadToCloudinary } from '../config/cloudinary.js';
-
+import { v4 as uuidv4 } from 'uuid';
 // Default product image
 const DEFAULT_IMAGE_URL = 'https://res.cloudinary.com/your-cloud/image/upload/v1234567890/default-product.jpg';
+
+
 
 /**
  * Processes image URLs from Excel and uploads new images to Cloudinary
@@ -11,54 +13,47 @@ const DEFAULT_IMAGE_URL = 'https://res.cloudinary.com/your-cloud/image/upload/v1
  */
 export const processProductImages = async (imageUrls = [], isUpdate = false) => {
   const processedImages = [];
-  
-  // If no images provided, use default image
+
+  // If no images provided, use default image with generated publicId
   if (!imageUrls || imageUrls.length === 0) {
-    return [{ url: DEFAULT_IMAGE_URL, isMain: true }];
+    return [{
+      url: DEFAULT_IMAGE_URL,
+      publicId: `default_${uuidv4()}`,
+      isMain: true
+    }];
   }
-  
-  // Process each image URL
+
   for (let i = 0; i < imageUrls.length; i++) {
     const imageUrl = imageUrls[i];
     const isMain = i === 0;
-    
+
     try {
-      // Check if URL is already a Cloudinary URL or external URL
       if (imageUrl.includes('cloudinary.com') || imageUrl.startsWith('http')) {
-        // External URL, use as-is
+        // External or existing Cloudinary URL: generate a new publicId
         processedImages.push({
           url: imageUrl,
+          publicId: `external_${uuidv4()}`,
           isMain
         });
       } else {
-        // Local file path or base64 - upload to Cloudinary
-        // Note: This would need to be adapted based on how files are handled
-        // For now, we'll assume URLs are provided
+        // Local file path or base64: upload to Cloudinary
+        const uploaded = await uploadToCloudinary(imageUrl, 'products');
         processedImages.push({
-          url: imageUrl,
+          url: uploaded.secure_url,
+          publicId: uploaded.public_id,
           isMain
         });
       }
     } catch (error) {
       console.error(`Error processing image ${imageUrl}:`, error);
-      // If image processing fails, use default image for main image
-      if (isMain) {
-        processedImages.push({
-          url: DEFAULT_IMAGE_URL,
-          isMain: true
-        });
-      }
+      // Fallback to default image with new publicId
+      processedImages.push({
+        url: DEFAULT_IMAGE_URL,
+        publicId: `default_${uuidv4()}`,
+        isMain
+      });
     }
   }
-  
-  return processedImages;
-};
 
-/**
- * Extracts image URLs from product images array
- * @param {Array} images - Array of image objects
- * @returns {string} Comma-separated image URLs
- */
-export const imagesToString = (images = []) => {
-  return images.map(img => img.url).join(', ');
+  return processedImages;
 };
