@@ -4,9 +4,12 @@ import DeliveryAssociate from "../models/deliveryAssociate.model.js";
 
 // Directly include Twilio credentials
 const accountSid = "ACc4413076b4375598fb9a390d198f59fd";
-const authToken = "83f645650da8cc90026fcf4ec4cdc5b3";
+const authToken = "1880d214253efbbb75e67a4daa3aa5f0";
 const twilioPhoneNumber = "+15087159964";
 const twilioWhatsappNumber="whatsapp:+14155238886";
+console.log("SID:", process.env.TWILIO_ACCOUNT_SID);
+console.log("Token length:", process.env.TWILIO_AUTH_TOKEN?.length || "MISSING");
+
 
 const client = twilio(accountSid, authToken);
 
