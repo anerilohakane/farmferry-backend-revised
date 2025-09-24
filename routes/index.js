@@ -18,6 +18,8 @@ import deliveryAssociatePaymentRoutes from "./deliveryAssociatePayment.routes.js
 import supplierPaymentRoutes from "./supplierPayment.routes.js";
 import refundRoutes from "./refund.routes.js";
 import paymentWebhookRoutes from "./paymentWebhook.routes.js";
+import excelUploadRoutes from "./excelupload.route.js";
+import errorHandler from "../middlewares/errorHandler.js";
 import couponRoutes from "./coupon.routes.js";
 //import settingsRoutes from "./settings.routes.js";
 
@@ -46,6 +48,12 @@ router.use("/refunds", refundRoutes);
 router.use("/webhooks", paymentWebhookRoutes);
 
 router.use("/sms", smsRoutes);
+
+
+//Excel Upload Route
+router.use('/excel-upload', excelUploadRoutes);
+// Error handler middleware (should be last)
+router.use(errorHandler);
 router.use("/coupons", couponRoutes);
 
 export default router;

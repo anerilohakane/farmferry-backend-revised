@@ -1,13 +1,13 @@
 import Supplier from "../models/supplier.model.js";
 import Product from "../models/product.model.js";
-import Order from "../models/order.model.js";
-import Admin from "../models/admin.model.js";
+import Category from "../models/category.model.js";
 import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
-import { uploadToCloudinary, deleteFromCloudinary } from "../config/cloudinary.js";
+import ExcelJS from 'exceljs';
+import { mapExcelToProduct, validateProductData } from "../utils/uploadValidation.js";
 import mongoose from "mongoose";
-import bcrypt from "bcryptjs"; // Added for password hashing
+import Order from '../models/order.model.js';import bcrypt from "bcryptjs"; // Added for password hashing
 
 // Register supplier
 export const registerSupplier = asyncHandler(async (req, res) => {
