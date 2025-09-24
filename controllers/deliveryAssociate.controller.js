@@ -1,4 +1,4 @@
-controller/deliveryAssociate.controller.js
+//DeliveryAssociate.controller
 
 import DeliveryAssociate from "../models/deliveryAssociate.model.js";
 import Order from "../models/order.model.js";

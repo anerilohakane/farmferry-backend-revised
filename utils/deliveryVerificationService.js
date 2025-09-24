@@ -1,4 +1,4 @@
-utils/deliveryVerificationService.js
+utils/deliveryverification
 
 // import crypto from 'crypto';
 // import smsUtils from './sms.js';
@@ -331,8 +331,7 @@ import smsUtils from './sms.js';
 import QRCodeService from './qrCodeService.js';
 import Order from '../models/order.model.js';
 import DeliveryAssociate from '../models/deliveryAssociate.model.js';
-import Customer from '../models/customer.model.js';
-import sendSMS from "../utils/sms.js";
+
 /**
  * Delivery Verification Service for OTP-based delivery confirmation
  */
@@ -598,24 +597,19 @@ export class DeliveryVerificationService {
       };
 
       // Send notification to customer
-      // if (customerPhone) {
-      //   try {
-      //     const customerMessage = `Hi ${customerName}, your order has been delivered successfully. Thank you for shopping with FarmFerry!`;
-      //     await smsUtils.sendSMS(customerPhone, customerMessage);
-      //     notificationResults.customerSMS.success = true;
-      //     console.log(`✅ Delivery confirmation SMS sent to customer: ${customerPhone}`);
-      //   } catch (customerError) {
-      //     notificationResults.customerSMS.error = customerError.message;
-      //     console.error(`❌ Failed to send SMS to customer ${customerPhone}:`, customerError.message);
-      //   }
-      // }
-      const customer = await Customer.findById(order.customer);
-       if (customerPhone) {
-        const body = `Hi ${customer.addresses?.[0]?.name || 'Customer'}, your order has been delivered successfully. Thank you for shopping with FarmFerry`;
-        await sendSMS.sendSmsThroughWhatsapp(customer.phone, body);
+      if (customerPhone) {
+        try {
+          const customerMessage = `Hi ${customerName}, your order has been delivered successfully. Thank you for shopping with FarmFerry!`;
+          await smsUtils.sendSMS(customerPhone, customerMessage);
+          notificationResults.customerSMS.success = true;
+          console.log(`✅ Delivery confirmation SMS sent to customer: ${customerPhone}`);
+        } catch (customerError) {
+          notificationResults.customerSMS.error = customerError.message;
+          console.error(`❌ Failed to send SMS to customer ${customerPhone}:`, customerError.message);
+        }
       }
 
-      // Send notification to delivery associate  
+      // Send notification to delivery associate
       if (deliveryAssociate && deliveryAssociate.phone) {
         try {
           const associateMessage = `Hi ${deliveryAssociate.name || 'Delivery Associate'}, order ${actualOrderId} has been delivered successfully. Great job!`;
