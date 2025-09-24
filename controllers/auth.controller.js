@@ -54,7 +54,7 @@ export const sendLoginOtp = asyncHandler(async (req, res) => {
   // Generate OTP
   const otp = Math.floor(100000 + Math.random() * 900000).toString();
   customer.phoneOTP = otp;
-  customer.phoneOTPExpires = Date.now() + 5 * 60 * 1000; // 5 mins
+  customer.phoneOTPExpires = Date.now() + 30 * 1000; // 5 mins
   await customer.save({ validateBeforeSave: false });
 
   // Send OTP via Twilio
