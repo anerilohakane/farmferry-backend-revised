@@ -1,3 +1,5 @@
+controller/order.controller.js 
+
 import Order from "../models/order.model.js";
 import Product from "../models/product.model.js";
 import Cart from "../models/cart.model.js";
@@ -205,6 +207,9 @@ export const createOrder = asyncHandler(async (req, res) => {
 
     await order.save();
 
+
+
+
     // Update product stock
     for (const item of supplierItems) {
       const product = await Product.findById(item.product);
@@ -233,6 +238,19 @@ export const createOrder = asyncHandler(async (req, res) => {
     const customer = await Customer.findById(req.user._id);
     const supplier = await Supplier.findById(supplierId);
 
+
+    // Send WhatsApp notification to customer
+    try {
+      if (customer && customer.phone) {
+        const body = `Hi ${customer.firstName || 'Customer'}, your order ${order.orderId || order._id} has been placed successfully ✅. Thank you for shopping with FarmFerry!`;
+        const waResult = await sendSMS.sendSmsThroughWhatsapp(customer.phone, body);
+        console.log(`📱 WhatsApp order confirmation sent to ${customer.phone} for order ${order.orderId || order._id}. SID: ${waResult?.sid || 'n/a'}`);
+      }
+    } catch (waError) {
+      console.error(`❌ Failed to send WhatsApp confirmation to ${customer?.phone} for order ${order.orderId || order._id}:`, waError.message);
+      // Do not block order creation on WhatsApp failure
+    }
+    
     // Send SMS notification to all active delivery boys
     try {
       // Fetch all active delivery associates
@@ -1043,23 +1061,23 @@ export const selfAssignOrder = asyncHandler(async (req, res) => {
 
   await order.save();
 
-  // Notify customer via SMS that order is being packed
+  // Notify customer via WhatsApp that order is being packed
   try {
     const customer = await Customer.findById(order.customer);
     if (customer && customer.phone) {
-      const smsBody = `Hi ${customer.firstName || 'Customer'}, your order is being packed.`;
+      const smsBody = `Hi ${customer.firstName || 'Customer'}, your order is being packed \ud83d\ude9a.`;
       try {
-        const smsResult = await sendSMS.sendSMS(customer.phone, smsBody);
-        console.log(`✅ Packaging SMS sent to customer ${customer.firstName || ''} ${customer.lastName || ''} (${customer.phone}) for order ${order.orderId || order._id}`);
-        console.log(`📦 Message SID: ${smsResult.sid}`);
+        const waResult = await sendSMS.sendSmsThroughWhatsapp(customer.phone, smsBody);
+        console.log(`✅ Packaging WhatsApp sent to customer ${customer.firstName || ''} ${customer.lastName || ''} (${customer.phone}) for order ${order.orderId || order._id}`);
+        console.log(`📦 Message SID: ${waResult?.sid || 'n/a'}`);
       } catch (smsError) {
-        console.error(`❌ Failed to send packaging SMS to customer ${customer.phone} for order ${order.orderId || order._id}:`, smsError.message);
+        console.error(`❌ Failed to send packaging WhatsApp to customer ${customer.phone} for order ${order.orderId || order._id}:`, smsError.message);
       }
     } else {
       console.log(`⚠️ No valid phone number for customer on order ${order.orderId || order._id}`);
     }
   } catch (notifyError) {
-    console.error(`❌ Error preparing packaging SMS for order ${order.orderId || order._id}:`, notifyError);
+    console.error(`❌ Error preparing packaging WhatsApp for order ${order.orderId || order._id}:`, notifyError);
   }
 
   return res.status(200).json(
