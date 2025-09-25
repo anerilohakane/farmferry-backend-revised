@@ -44,24 +44,32 @@ const allowedOrigins = [
   'http://localhost:3005',
   'http://localhost:3006',
   'https://farm-ferry-super-admin.vercel.app',
-  'https://farm-ferry-admin-eta.vercel.app/',
+  'https://farm-ferry-admin.vercel.app',
+  'https://farm-ferry-admin-eta.vercel.app',
   'https://www.farmferry.in',
   'https://farmferry.in'
 ];
 
+// const corsOptions = {
+//   origin: (origin, callback) => {
+//     if (!origin) return callback(null, true); // allow non-browser clients
+//     const normalized = origin.replace(/\/$/, '');
+//     if (allowedOrigins.includes(normalized)) {
+//       return callback(null, true);
+//     }
+//     return callback(null, false);
+//   },
+//   credentials: true,
+//   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+//   allowedHeaders: ['Content-Type', 'Authorization']
+// };
+
 const corsOptions = {
-  origin: (origin, callback) => {
-    if (!origin) return callback(null, true); // allow non-browser clients
-    const normalized = origin.replace(/\/$/, '');
-    if (allowedOrigins.includes(normalized)) {
-      return callback(null, true);
-    }
-    return callback(null, false);
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  origin: "*",
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+  allowedHeaders: ["Content-Type", "Authorization"],
 };
+
 
 app.use(cors(corsOptions));
 app.options('*', cors(corsOptions));
