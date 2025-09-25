@@ -44,7 +44,7 @@ const allowedOrigins = [
   'http://localhost:3005',
   'http://localhost:3006',
   'https://farm-ferry-super-admin.vercel.app',
-  'https://farm-ferry-admin.vercel.app',
+  'https://farm-ferry-admin-eta.vercel.app/',
   'https://www.farmferry.in',
   'https://farmferry.in'
 ];
