@@ -711,6 +711,7 @@ export const getProductAnalytics = asyncHandler(async (req, res) => {
         as: "product"
       }
     },
+    
     {
       $project: {
         _id: 1,

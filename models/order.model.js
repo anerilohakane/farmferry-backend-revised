@@ -238,7 +238,7 @@ const orderSchema = new mongoose.Schema(
     refundProcessedAt: {
       type: Date
     },
-    // QR/OTP Delivery Verification
+    //OTP Delivery Verification
     qrCode: {
       type: String // base64 or URL
     },

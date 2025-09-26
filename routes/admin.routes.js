@@ -1,4 +1,5 @@
 import { Router } from "express";
+import cors from "cors";
 import {
   getAdminProfile,
   updateAdminProfile,
@@ -33,6 +34,9 @@ import { upload } from "../middlewares/multer.middleware.js";
 
 const router = Router();
 
+// Enable CORS for all origins
+router.use(cors({ origin: "*" }));
+
 // Apply JWT verification and admin role to all routes
 router.use(verifyJWT, authorizeRoles("admin"));
 
@@ -58,7 +62,6 @@ router.post("/suppliers", createSupplier);
 
 // Delivery associate management
 router.get("/delivery-associates", getAllDeliveryAssociates);
-// Add CRUD routes for delivery associates
 router.post("/delivery-associates", createDeliveryAssociate);
 router.put("/delivery-associates/:id", updateDeliveryAssociate);
 router.delete("/delivery-associates/:id", deleteDeliveryAssociate);
