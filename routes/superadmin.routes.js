@@ -10,7 +10,7 @@ import {
   uploadSuperAdminAvatar,
   logoutSuperAdmin
 } from '../controllers/superadmin.controller.js';
-
+import cors from 'cors';
 const router = express.Router();
 
 // Enable CORS for all origins
