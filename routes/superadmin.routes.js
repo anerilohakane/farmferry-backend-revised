@@ -1,4 +1,5 @@
 import express from 'express';
+import cors from 'cors';
 import { verifyJWT } from '../middlewares/auth.middleware.js';
 import { authorizeRoles } from '../middlewares/auth.middleware.js';
 import { upload } from '../middlewares/multer.middleware.js';
@@ -10,14 +11,14 @@ import {
   uploadSuperAdminAvatar,
   logoutSuperAdmin
 } from '../controllers/superadmin.controller.js';
-import cors from 'cors';
+
 const router = express.Router();
 
 // Enable CORS for all origins
-router.use(cors({ origin: "*" }));
+router.use(cors({ origin: '*' }));
 
 // Public routes
-router.post('/login', loginSuperAdmin);
+router.post('/superadmin/login', loginSuperAdmin);
 router.post('/logout', logoutSuperAdmin);
 
 // Protected routes - require authentication
@@ -29,4 +30,4 @@ router.put('/profile', updateSuperAdminProfile);
 router.put('/change-password', changeSuperAdminPassword);
 router.put('/avatar', upload.single('avatar'), uploadSuperAdminAvatar);
 
-export default router; 
+export default router;
