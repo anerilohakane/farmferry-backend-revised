@@ -31,6 +31,7 @@ import {
 import { upload } from "../middlewares/multer.middleware.js";
 import { verifyJWT } from "../middlewares/auth.middleware.js";
 import cors from "cors";
+import { loginSuperAdmin } from "../controllers/superadmin.controller.js";
 
 const router = Router();
 router.use(cors({ origin: "*" }));
@@ -45,6 +46,7 @@ router.post("/send-customer-otp", sendLoginOtp);   // Step 1: send OTP
 router.post("/login/customer-otp", loginWithPhoneOtp); // Step 2: verify OTP & login
 
 router.post("/login/admin", loginAdmin);
+router.post('/superadmin/login', loginSuperAdmin);
 //router.post("/login/customer", loginCustomer);
 router.post("/login/supplier", loginSupplier);
 router.post("/login/delivery-associate", loginDeliveryAssociate);
