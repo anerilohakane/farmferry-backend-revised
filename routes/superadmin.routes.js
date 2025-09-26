@@ -18,7 +18,7 @@ const router = express.Router();
 router.use(cors({ origin: '*' }));
 
 // Public routes
-router.post('/superadmin/login', loginSuperAdmin);
+router.post('/login', loginSuperAdmin);
 router.post('/logout', logoutSuperAdmin);
 
 // Protected routes - require authentication
