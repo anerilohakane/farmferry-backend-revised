@@ -32,6 +32,7 @@ import {
 import { verifyJWT, authorizeRoles } from "../middlewares/auth.middleware.js";
 import { upload } from "../middlewares/multer.middleware.js";
 
+
 const router = Router();
 
 // Enable CORS for all origins
