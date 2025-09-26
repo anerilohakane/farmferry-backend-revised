@@ -3,7 +3,7 @@ import cors from 'cors';
 import { verifyJWT } from '../middlewares/auth.middleware.js';
 import { authorizeRoles } from '../middlewares/auth.middleware.js';
 import { upload } from '../middlewares/multer.middleware.js';
-import cors from "cors";
+//import cors from "cors";
 
 import {
   loginSuperAdmin,

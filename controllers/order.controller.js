@@ -1,6 +1,4 @@
 //order.controller
-
-
 import Order from "../models/order.model.js";
 import Product from "../models/product.model.js";
 import Cart from "../models/cart.model.js";
@@ -733,72 +731,7 @@ export const assignDeliveryAssociate = asyncHandler(async (req, res) => {
   );
 });
 
-// Update delivery status
-// export const updateDeliveryStatus = asyncHandler(async (req, res) => {
-//   const { id } = req.params;
-//   const { status, note } = req.body;
 
-//   if (!status) {
-//     throw new ApiError(400, "Status is required");
-//   }
-
-//   const order = await Order.findById(id);
-
-//   if (!order) {
-//     throw new ApiError(404, "Order not found");
-//   }
-
-//   // Check authorization (only delivery associate assigned to this order can update)
-//   const isAssignedDeliveryAssociate = 
-//     req.user.role === "deliveryAssociate" && 
-//     order.deliveryAssociate?.associate?.toString() === req.user._id.toString();
-
-//   if (!isAssignedDeliveryAssociate) {
-//     throw new ApiError(403, "You are not authorized to update delivery status");
-//   }
-
-//   // Validate status transition
-//   const validTransitions = {
-//     assigned: ["picked_up"],
-//     picked_up: ["out_for_delivery"],
-//     out_for_delivery: ["delivered", "failed"],
-//     delivered: [],
-//     failed: []
-//   };
-
-//   if (!validTransitions[order.deliveryAssociate.status] || 
-//       !validTransitions[order.deliveryAssociate.status].includes(status)) {
-//     throw new ApiError(400, `Cannot transition from ${order.deliveryAssociate.status} to ${status}`);
-//   }
-
-//   // Update delivery status
-//   order.deliveryAssociate.status = status;
-
-//   // Update order status if delivery status is delivered
-//   if (status === "delivered") {
-//     order.status = "delivered";
-//     order.deliveredAt = new Date();
-
-//     // Add status history entry
-//     order.statusHistory.push({
-//       status: "delivered",
-//       updatedAt: new Date(),
-//       updatedBy: req.user._id,
-//       updatedByModel: "DeliveryAssociate",
-//       note: note || "Delivered by delivery associate"
-//     });
-//   }
-
-//   await order.save();
-
-//   return res.status(200).json(
-//     new ApiResponse(
-//       200,
-//       { order },
-//       "Delivery status updated successfully"
-//     )
-//   );
-// });
 export const updateDeliveryStatus = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { status, note } = req.body;
@@ -996,27 +929,6 @@ export const getAvailableOrdersForDelivery = asyncHandler(async (req, res) => {
     new ApiResponse(200, { orders }, "Available orders fetched successfully")
   );
 });
-
-// Allow delivery associate to self-assign an order
-// export const selfAssignOrder = asyncHandler(async (req, res) => {
-//   const { id } = req.params;
-//   const order = await Order.findById(id);
-//   if (!order) throw new ApiError(404, "Order not found");
-//   if (order.deliveryAssociate?.associate)
-//     throw new ApiError(400, "Order already assigned");
-//   if (!["pending", "packaging"].includes(order.status))
-//     throw new ApiError(400, "Order not available for assignment");
-
-//   order.deliveryAssociate = {
-//     associate: req.user._id,
-//     assignedAt: new Date(),
-//     status: "packaging"
-//   };
-//   await order.save();
-//   return res.status(200).json(
-//     new ApiResponse(200, { order }, "Order self-assigned successfully")
-//   );
-// });
 
 export const selfAssignOrder = asyncHandler(async (req, res) => {
   const { id } = req.params;
