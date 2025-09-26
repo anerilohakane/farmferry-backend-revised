@@ -37,6 +37,7 @@ const __dirname = dirname(__filename);
 
 // Middleware
 const allowedOrigins = [
+  "*",
   'http://localhost:3000',
   'http://localhost:3002',
   'http://localhost:3003',
@@ -47,7 +48,7 @@ const allowedOrigins = [
   'https://farm-ferry-admin.vercel.app',
   'https://farm-ferry-admin-eta.vercel.app',
   'https://www.farmferry.in',
-  'https://farmferry.in'
+  'https://farmferry.in',
 ];
 
 const corsOptions = {
