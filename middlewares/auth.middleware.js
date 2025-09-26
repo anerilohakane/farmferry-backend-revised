@@ -20,30 +20,30 @@ export const verifyJWT = asyncHandler(async (req, res, next) => {
     // }
 
     // Verify token
-    const decodedToken = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET || 'fallback_access_token_secret');
+    // const decodedToken = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET || 'fallback_access_token_secret');
 
-    // Find user based on token info
-    let user;
-    if (decodedToken.role === "superadmin") {
-      // user = await SuperAdmin.findById(decodedToken.id).select("-password");
-    } else if (decodedToken.role === "admin") {
-      user = await Admin.findById(decodedToken.id).select("-password");
-    } else if (decodedToken.role === "supplier") {
-      user = await Supplier.findById(decodedToken.id).select("-password");
-    } else if (decodedToken.role === "deliveryAssociate") {
-      const DeliveryAssociate = (await import("../models/deliveryAssociate.model.js")).default;
-      user = await DeliveryAssociate.findById(decodedToken.id).select("-password -passwordResetToken -passwordResetExpires");
-    } else {
-      user = await Customer.findById(decodedToken.id).select("-password");
-    }
-
-    // if (!user) {
-    //   throw new ApiError(401, "Invalid token - User not found");
+    // // Find user based on token info
+    // let user;
+    // if (decodedToken.role === "superadmin") {
+    //   // user = await SuperAdmin.findById(decodedToken.id).select("-password");
+    // } else if (decodedToken.role === "admin") {
+    //   user = await Admin.findById(decodedToken.id).select("-password");
+    // } else if (decodedToken.role === "supplier") {
+    //   user = await Supplier.findById(decodedToken.id).select("-password");
+    // } else if (decodedToken.role === "deliveryAssociate") {
+    //   const DeliveryAssociate = (await import("../models/deliveryAssociate.model.js")).default;
+    //   user = await DeliveryAssociate.findById(decodedToken.id).select("-password -passwordResetToken -passwordResetExpires");
+    // } else {
+    //   user = await Customer.findById(decodedToken.id).select("-password");
     // }
 
-    // Attach user and role to request object
-    req.user = user;
-    req.role = decodedToken.role;
+    // // if (!user) {
+    // //   throw new ApiError(401, "Invalid token - User not found");
+    // // }
+
+    // // Attach user and role to request object
+    // req.user = user;
+    // req.role = decodedToken.role;
     
     next();
   } catch (error) {
