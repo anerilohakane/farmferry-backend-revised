@@ -18,6 +18,7 @@ import {
 } from "../controllers/supplier.controller.js";
 import { verifyJWT, authorizeRoles } from "../middlewares/auth.middleware.js";
 import { upload} from "../middlewares/multer.middleware.js";
+import cors from "cors";
 
 const router = Router();
 
