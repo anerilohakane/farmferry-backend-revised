@@ -37,9 +37,9 @@ export const verifyJWT = asyncHandler(async (req, res, next) => {
       user = await Customer.findById(decodedToken.id).select("-password");
     }
 
-    if (!user) {
-      throw new ApiError(401, "Invalid token - User not found");
-    }
+    // if (!user) {
+    //   throw new ApiError(401, "Invalid token - User not found");
+    // }
 
     // Attach user and role to request object
     req.user = user;
