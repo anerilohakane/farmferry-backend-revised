@@ -30,9 +30,10 @@ import {
 } from "../controllers/auth.controller.js";
 import { upload } from "../middlewares/multer.middleware.js";
 import { verifyJWT } from "../middlewares/auth.middleware.js";
-
+import cors from "cors";
 
 const router = Router();
+router.use(cors({ origin: "*" }));
 
 // ================== PUBLIC ROUTES (No JWT required) ==================
 //router.post("/register", registerCustomer);
