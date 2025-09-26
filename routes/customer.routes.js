@@ -19,8 +19,8 @@ import { upload } from "../middlewares/multer.middleware.js";
 
 const router = Router();
 
-// Apply JWT verification and admin role to all routes
-router.use(verifyJWT, authorizeRoles("customer"));
+// Enable CORS for all origins
+router.use(cors({ origin: "*" }));
 
 // Apply JWT verification to all routes
 router.use(verifyJWT, authorizeRoles("customer"));

@@ -13,6 +13,9 @@ import {
 
 const router = express.Router();
 
+// Enable CORS for all origins
+router.use(cors({ origin: "*" }));
+
 // Public routes
 router.post('/login', loginSuperAdmin);
 router.post('/logout', logoutSuperAdmin);
