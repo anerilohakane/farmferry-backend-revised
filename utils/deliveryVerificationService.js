@@ -1,5 +1,3 @@
-// import './deliveryverification.js';
-
 
 
 // import crypto from 'crypto';

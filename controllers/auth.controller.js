@@ -546,7 +546,7 @@ export const loginSupplier = asyncHandler(async (req, res) => {
 // Admin Login
 export const loginAdmin = asyncHandler(async (req, res) => {
   const { email, password } = req.body;
-
+  console.log(email,password)
   // Validate required fields
   if (!email || !password) {
     throw new ApiError(400, "Email and password are required");
