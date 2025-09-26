@@ -42,7 +42,6 @@ router.use(cors({ origin: "*" }));
 //router.post("/register", registerCustomer);
 //router.post("/register/customer", registerCustomer);
 router.post("/login", login);
-router.post("/superadmin/login", loginSuperAdmin);
 // OTP-based customer login
 router.post("/send-customer-otp", sendLoginOtp);   // Step 1: send OTP
 router.post("/login/customer-otp", loginWithPhoneOtp); // Step 2: verify OTP & login
