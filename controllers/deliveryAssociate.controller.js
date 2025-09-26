@@ -9,7 +9,7 @@ import { uploadToCloudinary, deleteFromCloudinary } from "../config/cloudinary.j
 import sendSMS from "../utils/sms.js";
 import fetch from "node-fetch";
 // controllers/deliveryController.js
-import DeliveryVerificationService from '../utils/deliveryVerificationService.js';
+import DeliveryVerificationService from '../utils/deliveryVerificationService.js'
 import Customer from '../models/customer.model.js';
 
 /**
