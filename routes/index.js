@@ -22,7 +22,7 @@ import excelUploadRoutes from "./excelupload.route.js";
 import errorHandler from "../middlewares/errorHandler.js";
 import couponRoutes from "./coupon.routes.js";
 //import settingsRoutes from "./settings.routes.js";
-
+    router.use(cors({ origin: "*" }));
 const router = Router();
 
 // Register all routes
