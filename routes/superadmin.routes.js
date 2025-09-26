@@ -13,6 +13,9 @@ import {
 
 const router = express.Router();
 
+// Product routes
+router.get("/products", getSupplierProducts);
+
 // Public routes
 router.post('/login', loginSuperAdmin);
 router.post('/logout', logoutSuperAdmin);
