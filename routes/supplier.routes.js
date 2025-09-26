@@ -19,6 +19,9 @@ import { upload} from "../middlewares/multer.middleware.js";
 
 const router = Router();
 
+// Enable CORS for all origins
+router.use(cors({ origin: "*" }));
+
 // Public route for registration (no middleware)
 router.post("/register", registerSupplier);
 

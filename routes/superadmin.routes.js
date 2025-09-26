@@ -13,8 +13,8 @@ import {
 
 const router = express.Router();
 
-// Product routes
-router.get("/products", getSupplierProducts);
+// Enable CORS for all origins
+router.use(cors({ origin: "*" }));
 
 // Public routes
 router.post('/login', loginSuperAdmin);

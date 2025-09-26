@@ -20,6 +20,9 @@ import { upload } from "../middlewares/multer.middleware.js";
 
 const router = Router();
 
+// Enable CORS for all origins
+router.use(cors({ origin: "*" }));
+
 // Add this route at the top, before router.use(...)
 router.get(
   "/",
