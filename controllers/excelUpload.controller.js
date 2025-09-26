@@ -10,6 +10,7 @@ import { processProductImages } from '../utils/imageUtils.js';
 import mongoose from 'mongoose';
 import { validateProductData} from '../utils/uploadValidation.js';
 import { processProductsInBatches}  from '../services/product.service.js';
+import { uploadToCloudinary, deleteFromCloudinary } from "../config/cloudinary.js";
 // import Category from '../models/category.model.js';
 // import validateExcelStructure}
 // Generate Excel template
@@ -432,6 +433,382 @@ export const updatePreviewProduct = asyncHandler(async (req, res) => {
       200,
       { previewProduct },
       "Preview product updated successfully"
+    )
+  );
+});
+
+
+// Upload image for preview product
+export const uploadPreviewProductImage = asyncHandler(async (req, res) => {
+  console.log('DEBUG uploadPreviewProductImage req.file:', req.file);
+  console.log('DEBUG uploadPreviewProductImage req.params:', req.params);
+  console.log('DEBUG uploadPreviewProductImage req.body:', req.body);
+
+  const { supplierId, previewProductId } = req.params;
+  
+  // Validate required parameters
+  if (!supplierId || !previewProductId) {
+    throw new ApiError(400, "Supplier ID and Preview Product ID are required");
+  }
+
+  // Validate file exists
+  if (!req.file) {
+    throw new ApiError(400, "Image file is required");
+  }
+
+  // Check if preview product exists and belongs to the supplier
+  const previewProduct = await PreviewProduct.findOne({
+    _id: previewProductId,
+    supplierId: supplierId
+  });
+
+  if (!previewProduct) {
+    throw new ApiError(404, "Preview product not found or access denied");
+  }
+
+  try {
+    // Upload image to Cloudinary
+    const uploadResult = await uploadToCloudinary(req.file, "preview-products");
+    console.log('Cloudinary upload result:', uploadResult);
+
+    if (!uploadResult || !uploadResult.url) {
+      throw new ApiError(500, "Failed to upload image to Cloudinary");
+    }
+
+    // Create image object
+    const newImage = {
+      url: uploadResult.url,
+      publicId: uploadResult.publicId || uploadResult.public_id,
+      isMain: previewProduct.images.length === 0 // Set as main if it's the first image
+    };
+
+    // If there are existing images, set isMain to false for all and add new one as main
+    let updatedImages = [];
+    
+    if (previewProduct.images.length > 0) {
+      // Set all existing images to not main
+      updatedImages = previewProduct.images.map(img => ({
+        ...img.toObject ? img.toObject() : img,
+        isMain: false
+      }));
+    }
+    
+    // Add new image as main
+    updatedImages.unshift(newImage);
+
+    // Update preview product with new image
+    const updatedProduct = await PreviewProduct.findByIdAndUpdate(
+      previewProductId,
+      {
+        $set: { images: updatedImages }
+      },
+      { 
+        new: true, 
+        runValidators: true 
+      }
+    );
+
+    if (!updatedProduct) {
+      // If update fails, delete the uploaded image from Cloudinary
+      if (uploadResult.publicId) {
+        await deleteFromCloudinary(uploadResult.publicId);
+      }
+      throw new ApiError(500, "Failed to update preview product with image");
+    }
+
+    return res.status(200).json(
+      new ApiResponse(
+        200,
+        { 
+          previewProduct: updatedProduct,
+          image: newImage
+        },
+        "Image uploaded successfully"
+      )
+    );
+
+  } catch (error) {
+    console.error('Image upload error:', error);
+    
+    // Clean up: Delete from Cloudinary if upload failed after file was uploaded
+    if (req.file && error.message.includes('Cloudinary')) {
+      try {
+        // You might need to extract publicId from the error or uploadResult
+        // This is a fallback cleanup attempt
+      } catch (cleanupError) {
+        console.error('Cleanup error:', cleanupError);
+      }
+    }
+    
+    throw new ApiError(500, error.message || "Image upload failed");
+  }
+});
+
+// Upload multiple images for preview product
+export const uploadMultiplePreviewProductImages = asyncHandler(async (req, res) => {
+  console.log('DEBUG uploadMultiplePreviewProductImages req.files:', req.files);
+  console.log('DEBUG uploadMultiplePreviewProductImages req.params:', req.params);
+
+  const { supplierId, previewProductId } = req.params;
+  
+  // Validate required parameters
+  if (!supplierId || !previewProductId) {
+    throw new ApiError(400, "Supplier ID and Preview Product ID are required");
+  }
+
+  // Validate files exist
+  if (!req.files || req.files.length === 0) {
+    throw new ApiError(400, "At least one image file is required");
+  }
+
+  // Check if preview product exists and belongs to the supplier
+  const previewProduct = await PreviewProduct.findOne({
+    _id: previewProductId,
+    supplierId: supplierId
+  });
+
+  if (!previewProduct) {
+    throw new ApiError(404, "Preview product not found or access denied");
+  }
+
+  try {
+    // Upload all images to Cloudinary
+    const uploadPromises = req.files.map(file => 
+      uploadToCloudinary(file, "preview-products")
+    );
+    
+    const uploadResults = await Promise.all(uploadPromises);
+    console.log('Cloudinary upload results:', uploadResults);
+
+    // Filter out failed uploads
+    const successfulUploads = uploadResults.filter(result => result && result.url);
+    console.log('Successful uploads:', successfulUploads);
+
+    if (successfulUploads.length === 0) {
+      throw new ApiError(500, "Failed to upload any images to Cloudinary");
+    }
+
+    // Create image objects
+    const newImages = successfulUploads.map((result, index) => ({
+      url: result.url,
+      publicId: result.publicId || result.public_id,
+      isMain: previewProduct.images.length === 0 && index === 0 // Set first as main if no existing images
+    }));
+
+    // Prepare updated images array
+    let updatedImages = [...previewProduct.images];
+    
+    // If adding first images, set the first one as main
+    if (updatedImages.length === 0 && newImages.length > 0) {
+      newImages[0].isMain = true;
+    }
+    
+    // Add new images to the beginning
+    updatedImages = [...newImages, ...updatedImages];
+
+    // Update preview product with new images
+    const updatedProduct = await PreviewProduct.findByIdAndUpdate(
+      previewProductId,
+      {
+        $set: { images: updatedImages }
+      },
+      { 
+        new: true, 
+        runValidators: true 
+      }
+    );
+
+    if (!updatedProduct) {
+      // If update fails, delete all uploaded images from Cloudinary
+      const deletePromises = successfulUploads
+        .filter(img => img.publicId)
+        .map(img => deleteFromCloudinary(img.publicId));
+      
+      await Promise.allSettled(deletePromises);
+      throw new ApiError(500, "Failed to update preview product with images");
+    }
+
+    return res.status(200).json(
+      new ApiResponse(
+        200,
+        { 
+          previewProduct: updatedProduct,
+          uploadedImages: newImages,
+          totalImages: updatedImages.length
+        },
+        `${successfulUploads.length} image(s) uploaded successfully`
+      )
+    );
+
+  } catch (error) {
+    console.error('Multiple images upload error:', error);
+    throw new ApiError(500, error.message || "Multiple images upload failed");
+  }
+});
+
+// Set main image for preview product
+export const setMainPreviewProductImage = asyncHandler(async (req, res) => {
+  console.log('DEBUG setMainPreviewProductImage req.params:', req.params);
+  console.log('DEBUG setMainPreviewProductImage req.body:', req.body);
+
+  const { supplierId, previewProductId, imageId } = req.params;
+  
+  // Validate required parameters
+  if (!supplierId || !previewProductId || !imageId) {
+    throw new ApiError(400, "Supplier ID, Preview Product ID, and Image ID are required");
+  }
+
+  // Check if preview product exists and belongs to the supplier
+  const previewProduct = await PreviewProduct.findOne({
+    _id: previewProductId,
+    supplierId: supplierId
+  });
+
+  if (!previewProduct) {
+    throw new ApiError(404, "Preview product not found or access denied");
+  }
+
+  // Check if image exists in product
+  const imageExists = previewProduct.images.some(img => 
+    img._id.toString() === imageId || img.publicId === imageId
+  );
+
+  if (!imageExists) {
+    throw new ApiError(404, "Image not found in this product");
+  }
+
+  // Update all images: set the specified one as main, others as not main
+  const updatedImages = previewProduct.images.map(img => ({
+    ...img.toObject ? img.toObject() : img,
+    isMain: (img._id.toString() === imageId || img.publicId === imageId)
+  }));
+
+  const updatedProduct = await PreviewProduct.findByIdAndUpdate(
+    previewProductId,
+    {
+      $set: { images: updatedImages }
+    },
+    { 
+      new: true, 
+      runValidators: true 
+    }
+  );
+
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      { 
+        previewProduct: updatedProduct,
+        mainImage: updatedImages.find(img => img.isMain)
+      },
+      "Main image set successfully"
+    )
+  );
+});
+
+// Delete image from preview product
+export const deletePreviewProductImage = asyncHandler(async (req, res) => {
+  console.log('DEBUG deletePreviewProductImage req.params:', req.params);
+
+  const { supplierId, previewProductId, imageId } = req.params;
+  
+  // Validate required parameters
+  if (!supplierId || !previewProductId || !imageId) {
+    throw new ApiError(400, "Supplier ID, Preview Product ID, and Image ID are required");
+  }
+
+  // Check if preview product exists and belongs to the supplier
+  const previewProduct = await PreviewProduct.findOne({
+    _id: previewProductId,
+    supplierId: supplierId
+  });
+
+  if (!previewProduct) {
+    throw new ApiError(404, "Preview product not found or access denied");
+  }
+
+  // Find the image to delete
+  const imageToDelete = previewProduct.images.find(img => 
+    img._id.toString() === imageId || img.publicId === imageId
+  );
+
+  if (!imageToDelete) {
+    throw new ApiError(404, "Image not found in this product");
+  }
+
+  // Delete from Cloudinary if publicId exists
+  if (imageToDelete.publicId) {
+    try {
+      await deleteFromCloudinary(imageToDelete.publicId);
+    } catch (cloudinaryError) {
+      console.error('Cloudinary deletion error:', cloudinaryError);
+      // Continue with database deletion even if Cloudinary deletion fails
+    }
+  }
+
+  // Remove image from array
+  const updatedImages = previewProduct.images.filter(img => 
+    !(img._id.toString() === imageId || img.publicId === imageId)
+  );
+
+  // If we deleted the main image and there are other images, set the first one as main
+  if (imageToDelete.isMain && updatedImages.length > 0) {
+    updatedImages[0].isMain = true;
+  }
+
+  const updatedProduct = await PreviewProduct.findByIdAndUpdate(
+    previewProductId,
+    {
+      $set: { images: updatedImages }
+    },
+    { 
+      new: true, 
+      runValidators: true 
+    }
+  );
+
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      { 
+        previewProduct: updatedProduct,
+        deletedImage: imageToDelete
+      },
+      "Image deleted successfully"
+    )
+  );
+});
+
+// Get preview product images
+export const getPreviewProductImages = asyncHandler(async (req, res) => {
+  console.log('DEBUG getPreviewProductImages req.params:', req.params);
+
+  const { supplierId, previewProductId } = req.params;
+  
+  // Validate required parameters
+  if (!supplierId || !previewProductId) {
+    throw new ApiError(400, "Supplier ID and Preview Product ID are required");
+  }
+
+  // Check if preview product exists and belongs to the supplier
+  const previewProduct = await PreviewProduct.findOne({
+    _id: previewProductId,
+    supplierId: supplierId
+  }).select('images name');
+
+  if (!previewProduct) {
+    throw new ApiError(404, "Preview product not found or access denied");
+  }
+
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      { 
+        images: previewProduct.images,
+        productName: previewProduct.name,
+        totalImages: previewProduct.images.length
+      },
+      "Images retrieved successfully"
     )
   );
 });
