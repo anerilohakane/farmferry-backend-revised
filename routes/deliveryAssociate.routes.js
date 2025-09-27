@@ -17,12 +17,8 @@ import {
 } from "../controllers/deliveryAssociate.controller.js";
 import { verifyJWT, authorizeRoles } from "../middlewares/auth.middleware.js";
 import { upload } from "../middlewares/multer.middleware.js";
-import cors from "cors";
 
 const router = Router();
-
-// Enable CORS for all origins
-router.use(cors({ origin: "*" }));
 
 // Add this route at the top, before router.use(...)
 router.get(

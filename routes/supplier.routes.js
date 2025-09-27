@@ -16,12 +16,8 @@ import {
 } from "../controllers/supplier.controller.js";
 import { verifyJWT, authorizeRoles } from "../middlewares/auth.middleware.js";
 import { upload} from "../middlewares/multer.middleware.js";
-import cors from "cors";
 
 const router = Router();
-
-// Enable CORS for all origins
-router.use(cors({ origin: "*" }));
 
 // Public route for registration (no middleware)
 router.post("/register", registerSupplier);

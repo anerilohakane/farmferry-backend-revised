@@ -21,11 +21,10 @@ import paymentWebhookRoutes from "./paymentWebhook.routes.js";
 import excelUploadRoutes from "./excelupload.route.js";
 import errorHandler from "../middlewares/errorHandler.js";
 import couponRoutes from "./coupon.routes.js";
-import cors from "cors";
 //import settingsRoutes from "./settings.routes.js";
-    
+
 const router = Router();
-router.use(cors({ origin: "*" }));
+
 // Register all routes
 router.use("/auth", authRoutes);
 router.use("/customers", customerRoutes);
