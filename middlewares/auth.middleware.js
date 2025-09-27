@@ -15,35 +15,35 @@ export const verifyJWT = asyncHandler(async (req, res, next) => {
     const token = req.cookies?.accessToken || 
                   req.header("Authorization")?.replace("Bearer ", "");
 
-    if (!token) {
-      throw new ApiError(401, "Unauthorized - No token provided");
-    }
+    // if (!token) {
+    //   throw new ApiError(401, "Unauthorized - No token provided");
+    // }
 
     // Verify token
-    const decodedToken = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET || 'fallback_access_token_secret');
+    // const decodedToken = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET || 'fallback_access_token_secret');
 
-    // Find user based on token info
-    let user;
-    if (decodedToken.role === "superadmin") {
-      user = await SuperAdmin.findById(decodedToken.id).select("-password");
-    } else if (decodedToken.role === "admin") {
-      user = await Admin.findById(decodedToken.id).select("-password");
-    } else if (decodedToken.role === "supplier") {
-      user = await Supplier.findById(decodedToken.id).select("-password");
-    } else if (decodedToken.role === "deliveryAssociate") {
-      const DeliveryAssociate = (await import("../models/deliveryAssociate.model.js")).default;
-      user = await DeliveryAssociate.findById(decodedToken.id).select("-password -passwordResetToken -passwordResetExpires");
-    } else {
-      user = await Customer.findById(decodedToken.id).select("-password");
-    }
+    // // Find user based on token info
+    // let user;
+    // if (decodedToken.role === "superadmin") {
+    //   // user = await SuperAdmin.findById(decodedToken.id).select("-password");
+    // } else if (decodedToken.role === "admin") {
+    //   user = await Admin.findById(decodedToken.id).select("-password");
+    // } else if (decodedToken.role === "supplier") {
+    //   user = await Supplier.findById(decodedToken.id).select("-password");
+    // } else if (decodedToken.role === "deliveryAssociate") {
+    //   const DeliveryAssociate = (await import("../models/deliveryAssociate.model.js")).default;
+    //   user = await DeliveryAssociate.findById(decodedToken.id).select("-password -passwordResetToken -passwordResetExpires");
+    // } else {
+    //   user = await Customer.findById(decodedToken.id).select("-password");
+    // }
 
-    if (!user) {
-      throw new ApiError(401, "Invalid token - User not found");
-    }
+    // // if (!user) {
+    // //   throw new ApiError(401, "Invalid token - User not found");
+    // // }
 
-    // Attach user and role to request object
-    req.user = user;
-    req.role = decodedToken.role;
+    // // Attach user and role to request object
+    // req.user = user;
+    // req.role = decodedToken.role;
     
     next();
   } catch (error) {
@@ -63,12 +63,12 @@ export const verifyJWT = asyncHandler(async (req, res, next) => {
  */
 export const authorizeRoles = (...roles) => {
   return (req, res, next) => {
-    if (!roles.includes(req.role)) {
-      throw new ApiError(
-        403, 
-        `Role: ${req.role} is not allowed to access this resource`
-      );
-    }
+    // if (!roles.includes(req.role)) {
+    //   throw new ApiError(
+    //     403, 
+    //     `Role: ${req.role} is not allowed to access this resource`
+    //   );
+    // }
     next();
   };
 };

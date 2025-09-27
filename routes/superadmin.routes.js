@@ -1,4 +1,5 @@
 import express from 'express';
+import cors from 'cors';
 import { verifyJWT } from '../middlewares/auth.middleware.js';
 import { authorizeRoles } from '../middlewares/auth.middleware.js';
 import { upload } from '../middlewares/multer.middleware.js';
@@ -13,6 +14,9 @@ import {
 
 const router = express.Router();
 
+// Enable CORS for all origins
+router.use(cors({ origin: '*' }));
+
 // Public routes
 router.post('/login', loginSuperAdmin);
 router.post('/logout', logoutSuperAdmin);
@@ -26,4 +30,4 @@ router.put('/profile', updateSuperAdminProfile);
 router.put('/change-password', changeSuperAdminPassword);
 router.put('/avatar', upload.single('avatar'), uploadSuperAdminAvatar);
 
-export default router; 
+export default router;
