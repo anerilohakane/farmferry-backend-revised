@@ -14,20 +14,47 @@ export const getAllPaymentRecords = async (req, res) => {
       sortOrder = "desc"
     } = req.query;
 
-    // Build filter object
-    const filter = {status: { $ne: "returned" }};
+    // Build filter object - show orders that are either not returned OR are returned but paid
+    const baseFilter = {
+      $or: [
+        { status: { $ne: "returned" } }, // Show non-returned orders
+        { 
+          status: "returned", 
+          paymentStatus: "paid" // Show returned orders only if they were paid
+        }
+      ]
+    };
+    
+    const filter = { ...baseFilter };
     
     // Search filter - search in customer name, orderId, or transactionId
     if (search) {
-      filter.$or = [
-        { orderId: { $regex: search, $options: "i" } },
-        { transactionId: { $regex: search, $options: "i" } }
+      filter.$and = [
+        baseFilter,
+        {
+          $or: [
+            { orderId: { $regex: search, $options: "i" } },
+            { transactionId: { $regex: search, $options: "i" } }
+          ]
+        }
       ];
+      delete filter.$or; // Remove the original $or since we're using $and now
     }
 
     // Status filter
     if (status && status !== "all") {
-      filter.paymentStatus = status;
+      if (status === "paid_returned") {
+        // Special case for paid_returned: order status is returned AND payment status is paid
+        filter.$and = filter.$and || [];
+        filter.$and.push({
+          $and: [
+            { status: "returned" },
+            { paymentStatus: "paid" }
+          ]
+        });
+      } else {
+        filter.paymentStatus = status;
+      }
     }
 
     // Payment method filter

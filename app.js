@@ -39,6 +39,7 @@ const __dirname = dirname(__filename);
 const allowedOrigins = [
   "*",
   'http://localhost:3000',
+  'http://192.168.0.102:3000',  // Added your current IP
   'http://192.168.0.104:3000',
   'http://localhost:3002',
   'http://localhost:3003',
@@ -55,15 +56,23 @@ const allowedOrigins = [
 const corsOptions = {
   origin: (origin, callback) => {
     if (!origin) return callback(null, true); // allow non-browser clients
-    const normalized = origin.replace(/\/$/, '');
-    if (allowedOrigins.includes(normalized)) {
+    
+    // Allow all localhost and 192.168.x.x addresses for development
+    if (origin.includes('localhost') || origin.includes('127.0.0.1') || origin.includes('192.168.')) {
       return callback(null, true);
     }
+    
+    const normalized = origin.replace(/\/$/, '');
+    if (allowedOrigins.includes(normalized) || allowedOrigins.includes('*')) {
+      return callback(null, true);
+    }
+    
+    console.log(`🚫 CORS blocked origin: ${origin}`);
     return callback(null, false);
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin']
 };
 
 app.use(cors(corsOptions));
