@@ -18,11 +18,11 @@ import {
 } from "../controllers/customer.controller.js";
 import { verifyJWT, authorizeRoles } from "../middlewares/auth.middleware.js";
 import { upload } from "../middlewares/multer.middleware.js";
-import cors from "cors";
+
 const router = Router();
 
-// Enable CORS for all origins
-router.use(cors({ origin: "*" }));
+// Apply JWT verification and admin role to all routes
+router.use(verifyJWT, authorizeRoles("customer"));
 
 // Apply JWT verification to all routes
 router.use(verifyJWT, authorizeRoles("customer"));

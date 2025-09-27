@@ -457,10 +457,10 @@ export const updateSupplier = asyncHandler(async (req, res) => {
 
 // Create a new supplier (admin)
 export const createSupplier = asyncHandler(async (req, res) => {
-  const { businessName, ownerName, email, phone, status, address } = req.body;
+  const { businessName, ownerName, email, phone, status, address,password} = req.body;
 
   // Generate a random password for the supplier
-  const password = Math.random().toString(36).slice(-8);
+  // const password = Math.random().toString(36).slice(-8);
 
   // Check if email already exists
   const existing = await Supplier.findOne({ email });

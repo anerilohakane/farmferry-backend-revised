@@ -32,7 +32,6 @@ import {
 import { verifyJWT, authorizeRoles } from "../middlewares/auth.middleware.js";
 import { upload } from "../middlewares/multer.middleware.js";
 
-import { loginSuperAdmin } from "../controllers/superadmin.controller.js";
 const router = Router();
 
 // Enable CORS for all origins
