@@ -46,7 +46,7 @@ export const getAllPaymentRecords = async (req, res) => {
     const orders = await Order.find(filter)
     .populate({
         path: 'customer',
-        select: 'firstName lastName email phone', // Only select these fields
+        select: 'firstName lastName email phone addresses', // Include addresses field
         model: 'Customer' // Explicitly specify the model if needed
       }) // Populate customer details
       .select("orderId customer totalAmount paymentMethod paymentStatus transactionId createdAt")
@@ -63,11 +63,12 @@ export const getAllPaymentRecords = async (req, res) => {
       paymentId: `PYM-${order.orderId}`, // Create payment ID from order ID
       customer: {
         id: order.customer._id,
-        name: `${order.customer?.firstName || ''} ${order.customer?.lastName || ''}`.trim() || 'Unknown Customer',
+        name: order.customer?.addresses?.[0]?.name || `${order.customer?.firstName || ''} ${order.customer?.lastName || ''}`.trim() || 'Unknown Customer',
         firstName: order.customer?.firstName || '',
         lastName: order.customer?.lastName || '',
         email: order.customer?.email,
-        phone: order.customer?.phone
+        phone: order.customer?.phone,
+        addresses: order.customer?.addresses || []
       },
       amount: order.totalAmount,
       method: formatPaymentMethod(order.paymentMethod),
@@ -111,7 +112,7 @@ export const getPaymentRecordById = async (req, res) => {
     const orderId = paymentId.replace("PYM-", "");
 
     const order = await Order.findOne({ orderId })
-      .populate("customer", "name email phone address")
+      .populate("customer", "firstName lastName email phone addresses")
       .populate("supplier", "name email phone");
 
     if (!order) {
@@ -126,9 +127,12 @@ export const getPaymentRecordById = async (req, res) => {
       orderId: order.orderId,
       customer: {
         id: order.customer._id,
-        name: order.customer.name,
-        email: order.customer.email,
-        phone: order.customer.phone
+        name: order.customer?.addresses?.[0]?.name || `${order.customer?.firstName || ''} ${order.customer?.lastName || ''}`.trim() || 'Unknown Customer',
+        firstName: order.customer?.firstName || '',
+        lastName: order.customer?.lastName || '',
+        email: order.customer?.email,
+        phone: order.customer?.phone,
+        addresses: order.customer?.addresses || []
       },
       supplier: order.supplier ? {
         id: order.supplier._id,
@@ -337,14 +341,14 @@ export const exportPaymentRecords = async (req, res) => {
     }
 
     const orders = await Order.find(filter)
-      .populate("customer", "name email phone")
+      .populate("customer", "firstName lastName email phone addresses")
       .select("orderId customer totalAmount paymentMethod paymentStatus transactionId createdAt")
       .sort({ createdAt: -1 });
 
     // Transform to CSV format
     const csvData = orders.map(order => ({
       "Payment ID": `PYM-${order.orderId}`,
-      "Customer": order.customer.name,
+      "Customer": order.customer?.addresses?.[0]?.name || `${order.customer?.firstName || ''} ${order.customer?.lastName || ''}`.trim() || 'Unknown Customer',
       "Amount": `₹${order.totalAmount}`,
       "Method": formatPaymentMethod(order.paymentMethod),
       "Status": order.paymentStatus.charAt(0).toUpperCase() + order.paymentStatus.slice(1),
