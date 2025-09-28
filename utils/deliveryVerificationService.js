@@ -272,7 +272,7 @@ export class DeliveryVerificationService {
       if (customerPhone) {
         try {
           const customerMessage = `Hi ${customerName}, your order has been delivered successfully. Thank you for shopping with FarmFerry!`;
-          await smsUtils.sendSMS(customerPhone, customerMessage);
+          await smsUtils.sendSmsThroughWhatsapp(customerPhone, customerMessage);
           notificationResults.customerSMS.success = true;
           console.log(`✅ Delivery confirmation SMS sent to customer: ${customerPhone}`);
         } catch (customerError) {

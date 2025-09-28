@@ -964,7 +964,7 @@ export const selfAssignOrder = asyncHandler(async (req, res) => {
     if (customer && customer.phone) {
       const smsBody = `Hi ${customer.addresses?.[0].name || 'Customer'}, your order is being packed.`;
       try {
-        const smsResult = await sendSMS.sendSMS(customer.phone, smsBody);
+        const smsResult = await sendSMS.sendSmsThroughWhatsapp(customer.phone, smsBody);
         console.log(`✅ Packaging SMS sent to customer ${customer.firstName || ''} ${customer.lastName || ''} (${customer.phone}) for order ${order.orderId || order._id}`);
         console.log(`📦 Message SID: ${smsResult.sid}`);
       } catch (smsError) {
