@@ -110,7 +110,10 @@ export const addItemToCart = asyncHandler(async (req, res) => {
   }
 
   // Find cart or create new one
+  
+  
   let cart = await Cart.findOne({ customer: req.user._id });
+  console.log(`!!!!!!! User data !!!!!!!!!:- ${req.user}`);
 
   if (!cart) {
     cart = new Cart({
