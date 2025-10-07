@@ -3,9 +3,9 @@ import Customer from "../models/customer.model.js";
 import DeliveryAssociate from "../models/deliveryAssociate.model.js";
 
 // Directly include Twilio credentials
-const accountSid = "ACc4413076b4375598fb9a390d198f59fd";
-const authToken = "1880d214253efbbb75e67a4daa3aa5f0";
-const twilioPhoneNumber = "+15087159964";
+const accountSid = "AC45c508609f55dd64d3b84d0298f83b43";
+const authToken = "0a39c4ae38d29b483c27d8d44012b869";
+const twilioPhoneNumber = "+12314422059";
 const twilioWhatsappNumber="whatsapp:+14155238886";
 console.log("SID:", process.env.TWILIO_ACCOUNT_SID);
 console.log("Token length:", process.env.TWILIO_AUTH_TOKEN?.length || "MISSING");
