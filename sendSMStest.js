@@ -1,8 +1,8 @@
 import twilio from "twilio";
 
 const accountSid = "AC185367e43d7ec6d32b8b7aa7ba16ee5e";
-const authToken = "9e3b7d9f91b1cf8beac8d291b1cb6ece";
-const fromNumber = "+15075169669"; // e.g. +16824705397
+const authToken = "bc0d1b1632534afdba15a721f1e1bd6a";
+const fromNumber = "+12272309426"; // e.g. +16824705397
 const toNumber = "+919322506730"; // your phone number in E.164 format (+91XXXXXXXXXX)
 
 const client = twilio(accountSid, authToken);
