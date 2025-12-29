@@ -440,7 +440,7 @@
           "response": []
         },
         {
-          "name": "Update Business Hours",
+          "name": "Update Office Hours",
           "request": {
             "method": "PUT",
             "header": [
